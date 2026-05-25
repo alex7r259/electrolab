@@ -19,6 +19,10 @@ def init_db():
             protocol_number TEXT,
             protocol_name TEXT,
             object_code TEXT,
+            object_name TEXT,
+            protocol_title TEXT,
+            test_date TEXT,
+            engineers TEXT,
             test_type TEXT,
             cell_number TEXT,
             content_text TEXT,
@@ -33,6 +37,10 @@ def init_db():
         'test_type': 'TEXT',
         'cell_number': 'TEXT',
         'content_text': 'TEXT',
+        'object_name': 'TEXT',
+        'protocol_title': 'TEXT',
+        'test_date': 'TEXT',
+        'engineers': 'TEXT',
     }
 
     for column_name, column_type in required_columns.items():
