@@ -27,6 +27,13 @@
             <option value="Высоковольтные испытания" {% if type_filter == 'Высоковольтные испытания' %}selected{% endif %}>Высоковольтные испытания</option>
         </select>
 
+        <select name="year" class="form-control">
+            <option value="">Все годы</option>
+            <option value="26" {% if year == '26' %}selected{% endif %}>2026</option>
+            <option value="25" {% if year == '25' %}selected{% endif %}>2025</option>
+            <option value="24" {% if year == '24' %}selected{% endif %}>2024</option>
+        </select>
+
         <button class="btn btn-industrial"><i class="fa-solid fa-magnifying-glass me-2"></i>Найти</button>
     </form>
 </div>
