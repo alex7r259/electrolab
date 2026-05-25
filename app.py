@@ -1,5 +1,7 @@
-from flask import Flask, render_template, request, send_file
+import os
 import sqlite3
+
+from flask import Flask, abort, render_template, request, send_file
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -24,18 +26,31 @@ def init_db():
             test_date TEXT,
             engineers TEXT,
             test_type TEXT,
-            cell_number TEXT,
             content_text TEXT,
             file_path TEXT UNIQUE,
             modified_date TEXT
         )
     ''')
 
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_protocol_number
+        ON protocols(protocol_number)
+    ''')
+
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_object_code
+        ON protocols(object_code)
+    ''')
+
+    cursor.execute('''
+        CREATE INDEX IF NOT EXISTS idx_test_type
+        ON protocols(test_type)
+    ''')
+
     cursor.execute("PRAGMA table_info(protocols)")
     existing_columns = {row[1] for row in cursor.fetchall()}
     required_columns = {
         'test_type': 'TEXT',
-        'cell_number': 'TEXT',
         'content_text': 'TEXT',
         'object_name': 'TEXT',
         'protocol_title': 'TEXT',
@@ -72,11 +87,23 @@ def index():
 
     if search:
         query += '''
-            AND (protocol_number LIKE ?
-                 OR protocol_name LIKE ?
-                 OR content_text LIKE ?)
+            AND (
+                COALESCE(protocol_number, '') LIKE ?
+                OR COALESCE(protocol_name, '') LIKE ?
+                OR COALESCE(protocol_title, '') LIKE ?
+                OR COALESCE(object_name, '') LIKE ?
+                OR COALESCE(engineers, '') LIKE ?
+                OR COALESCE(content_text, '') LIKE ?
+            )
         '''
-        params.extend([f'%{search}%', f'%{search}%', f'%{search}%'])
+        params.extend([
+            f'%{search}%',
+            f'%{search}%',
+            f'%{search}%',
+            f'%{search}%',
+            f'%{search}%',
+            f'%{search}%',
+        ])
 
     if year:
         query += ' AND protocol_number LIKE ?'
@@ -114,14 +141,22 @@ def open_protocol(id):
     cursor.execute('SELECT * FROM protocols WHERE id=?', (id,))
     protocol = cursor.fetchone()
     conn.close()
+
+    if not protocol:
+        abort(404)
+
+    if not os.path.exists(protocol['file_path']):
+        return 'Файл не найден'
+
     return send_file(protocol['file_path'])
 
 
 if __name__ == '__main__':
     init_db()
+    scan_folders()
 
     scheduler = BackgroundScheduler()
     scheduler.add_job(scan_folders, 'interval', minutes=5, max_instances=1)
     scheduler.start()
 
-    app.run(debug=True)
+    app.run(debug=True, use_reloader=False)
