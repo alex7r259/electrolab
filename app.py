@@ -19,6 +19,10 @@ def init_db():
             protocol_number TEXT,
             protocol_name TEXT,
             object_code TEXT,
+            object_name TEXT,
+            protocol_title TEXT,
+            test_date TEXT,
+            engineers TEXT,
             test_type TEXT,
             cell_number TEXT,
             content_text TEXT,
@@ -33,6 +37,10 @@ def init_db():
         'test_type': 'TEXT',
         'cell_number': 'TEXT',
         'content_text': 'TEXT',
+        'object_name': 'TEXT',
+        'protocol_title': 'TEXT',
+        'test_date': 'TEXT',
+        'engineers': 'TEXT',
     }
 
     for column_name, column_type in required_columns.items():
@@ -48,6 +56,7 @@ def index():
     search = request.args.get('search', '')
     object_filter = request.args.get('object_filter', '')
     type_filter = request.args.get('type_filter', '')
+    year = request.args.get('year', '')
 
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
@@ -56,12 +65,22 @@ def index():
     query = '''
         SELECT *
         FROM protocols
-        WHERE
-            (protocol_number LIKE ?
-             OR protocol_name LIKE ?
-             OR content_text LIKE ?)
+        WHERE 1=1
     '''
-    params = [f'%{search}%', f'%{search}%', f'%{search}%']
+
+    params = []
+
+    if search:
+        query += '''
+            AND (protocol_number LIKE ?
+                 OR protocol_name LIKE ?
+                 OR content_text LIKE ?)
+        '''
+        params.extend([f'%{search}%', f'%{search}%', f'%{search}%'])
+
+    if year:
+        query += ' AND protocol_number LIKE ?'
+        params.append(f'{year}-%')
 
     if object_filter:
         query += ' AND object_code = ?'
@@ -83,6 +102,7 @@ def index():
         search=search,
         object_filter=object_filter,
         type_filter=type_filter,
+        year=year,
     )
 
 

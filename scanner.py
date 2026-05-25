@@ -40,13 +40,10 @@ SCAN_RUNNING = False
 
 def is_valid_protocol(filename):
     name = filename.lower()
+    if not name.endswith('.docx'):
+        return False
     if name.startswith('~$'):
         return False
-    if not name.endswith(('.docx', '.pdf')):
-        return False
-    for word in IGNORE_WORDS:
-        if word in name:
-            return False
     if 'протокол' not in name:
         return False
     return True
@@ -60,21 +57,6 @@ def detect_test_type(text):
     return 'Прочее'
 
 
-def extract_protocol_number(filename):
-    patterns = [
-        r'(\d{2}-[А-ЯA-Z0-9]+-\d+)',
-        r'протокол\s*№?\s*(\d+)',
-        r'протокол\s*(\d+-\d+)',
-        r'(\d+-\d+)',
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, filename, re.IGNORECASE)
-        if match:
-            return match.group(1)
-    return None
-
-
 def extract_cell_number(text):
     match = re.search(r'яч\.?\s*№?\s*(\d+)', text, re.IGNORECASE)
     if match:
@@ -82,18 +64,87 @@ def extract_cell_number(text):
     return None
 
 
-def extract_docx_text(path):
+def read_docx_text(path):
     try:
         doc = Document(path)
-        full_text = []
-        for paragraph in doc.paragraphs:
-            full_text.append(paragraph.text)
-        return '\n'.join(full_text)
-    except Exception:
+        text = []
+        for p in doc.paragraphs:
+            if p.text.strip():
+                text.append(p.text.strip())
+        return '\n'.join(text)
+    except Exception as e:
+        print(f'DOCX error: {e}')
         return ''
 
 
-def add_protocol(protocol_number, protocol_name, object_code, test_type, content_text, file_path, modified_date, cell_number):
+def parse_protocol_data(text):
+    data = {
+        'protocol_number': '',
+        'protocol_title': '',
+        'object_name': '',
+        'test_date': '',
+        'engineers': '',
+    }
+
+    lines = text.split('\n')
+    match = re.search(
+        r'протокол\s*№?\s*([\w\-\/]+)',
+        text,
+        re.IGNORECASE,
+    )
+    if match:
+        data['protocol_number'] = match.group(1).strip()
+
+    for i, line in enumerate(lines):
+        if 'протокол' in line.lower():
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                if len(next_line) > 3:
+                    data['protocol_title'] = next_line
+                    break
+
+    object_patterns = [
+        r'объект[:\s]+(.+)',
+        r'на объекте[:\s]+(.+)',
+    ]
+    for pattern in object_patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            data['object_name'] = match.group(1).strip()
+            break
+
+    match = re.search(
+        r'дата проведения испытаний[:\s]+([0-9\.]+)',
+        text,
+        re.IGNORECASE,
+    )
+    if match:
+        data['test_date'] = match.group(1)
+
+    match = re.search(
+        r'испытания произвели[:\s]+(.+)',
+        text,
+        re.IGNORECASE,
+    )
+    if match:
+        data['engineers'] = match.group(1).strip()
+
+    return data
+
+
+def protocol_exists(path):
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+    cursor.execute(
+        'SELECT id FROM protocols WHERE file_path=?',
+        (path,),
+    )
+    result = cursor.fetchone()
+    conn.close()
+    return result is not None
+
+
+def add_protocol(parsed, protocol_name, object_code, test_type, content_text, file_path, modified_date, cell_number):
     try:
         conn = sqlite3.connect(DATABASE, timeout=30)
         cursor = conn.cursor()
@@ -102,17 +153,25 @@ def add_protocol(protocol_number, protocol_name, object_code, test_type, content
                 protocol_number,
                 protocol_name,
                 object_code,
+                object_name,
+                protocol_title,
+                test_date,
+                engineers,
                 test_type,
                 content_text,
                 file_path,
                 modified_date,
                 cell_number
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            protocol_number,
+            parsed.get('protocol_number'),
             protocol_name,
             object_code,
+            parsed.get('object_name'),
+            parsed.get('protocol_title'),
+            parsed.get('test_date'),
+            parsed.get('engineers'),
             test_type,
             content_text,
             file_path,
@@ -148,22 +207,26 @@ def scan_folders():
                     continue
 
                 full_path = os.path.join(root, file)
-                protocol_number = extract_protocol_number(file)
+                if protocol_exists(full_path):
+                    continue
+
                 protocol_name = os.path.splitext(file)[0]
+                content_text = ''
+                parsed = {}
+
+                content_text = read_docx_text(full_path)
+                parsed = parse_protocol_data(content_text)
+
                 test_type = detect_test_type(file)
                 modified_date = datetime.fromtimestamp(
                     os.path.getmtime(full_path)
                 ).strftime('%d.%m.%Y %H:%M')
 
-                content_text = ''
-                if file.lower().endswith('.docx'):
-                    content_text = extract_docx_text(full_path)
-
                 combined_text = f'{file}\n{content_text}'
                 cell_number = extract_cell_number(combined_text)
 
                 add_protocol(
-                    protocol_number,
+                    parsed,
                     protocol_name,
                     object_code,
                     test_type,
