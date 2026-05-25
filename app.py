@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import threading
 
 from flask import Flask, abort, render_template, request, send_file
 
@@ -10,11 +11,15 @@ from scanner import scan_folders
 app = Flask(__name__)
 
 DATABASE = 'protocols.db'
+scheduler_started = False
+lock = threading.Lock()
 
 
 def init_db():
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, timeout=30)
     cursor = conn.cursor()
+    cursor.execute('PRAGMA journal_mode=WAL')
+    cursor.execute('PRAGMA synchronous=NORMAL')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS protocols (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +78,7 @@ def index():
     type_filter = request.args.get('type_filter', '')
     year = request.args.get('year', '')
 
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, timeout=30)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -106,8 +111,8 @@ def index():
         ])
 
     if year:
-        query += ' AND protocol_number LIKE ?'
-        params.append(f'{year}-%')
+        query += " AND substr(COALESCE(test_date, ''), 7, 4) = ?"
+        params.append(year)
 
     if object_filter:
         query += ' AND object_code = ?'
@@ -117,7 +122,23 @@ def index():
         query += ' AND test_type = ?'
         params.append(type_filter)
 
-    query += ' ORDER BY modified_date DESC'
+    query += """
+        ORDER BY
+            CASE
+                WHEN test_date LIKE '__.__.____'
+                THEN substr(test_date, 7, 4) || '-' || substr(test_date, 4, 2) || '-' || substr(test_date, 1, 2)
+                ELSE ''
+            END DESC,
+            id DESC
+    """
+
+    cursor.execute("""
+        SELECT DISTINCT substr(test_date, 7, 4) AS year
+        FROM protocols
+        WHERE test_date LIKE '__.__.____'
+        ORDER BY year DESC
+    """)
+    available_years = [row['year'] for row in cursor.fetchall() if row['year']]
 
     cursor.execute(query, params)
     protocols = cursor.fetchall()
@@ -130,12 +151,13 @@ def index():
         object_filter=object_filter,
         type_filter=type_filter,
         year=year,
+        available_years=available_years,
     )
 
 
 @app.route('/open/<int:id>')
 def open_protocol(id):
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, timeout=30)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM protocols WHERE id=?', (id,))
@@ -155,8 +177,17 @@ if __name__ == '__main__':
     init_db()
     scan_folders()
 
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(scan_folders, 'interval', minutes=5, max_instances=1)
-    scheduler.start()
+    with lock:
+        if not scheduler_started:
+            scheduler = BackgroundScheduler()
+            scheduler.add_job(
+                scan_folders,
+                'interval',
+                minutes=5,
+                max_instances=1,
+                coalesce=True,
+            )
+            scheduler.start()
+            scheduler_started = True
 
     app.run(debug=True, use_reloader=False)
