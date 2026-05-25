@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h3 class="mb-4">Добавление протокола</h3>
+
+<form method="POST" class="card card-body bg-white shadow-sm">
+
+    <div class="mb-3">
+        <label class="form-label">Номер протокола</label>
+        <input
+            type="text"
+            class="form-control"
+            value="{{ next_number }}"
+            disabled
+        >
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Название протокола</label>
+        <input type="text" name="protocol_name" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Объект</label>
+        <input type="text" name="object_name" class="form-control">
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Заказчик</label>
+        <input type="text" name="customer" class="form-control">
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Исполнитель</label>
+        <input type="text" name="executor" class="form-control">
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Дата</label>
+        <input
+            type="date"
+            name="protocol_date"
+            class="form-control"
+            value="{{ today }}"
+        >
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Примечание</label>
+        <textarea name="notes" class="form-control"></textarea>
+    </div>
+
+    <button class="btn btn-success">
+        Сохранить
+    </button>
+
+</form>
+
+{% endblock %}
