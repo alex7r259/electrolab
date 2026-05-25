@@ -2,6 +2,10 @@ from flask import Flask, render_template, request, redirect, url_for
 import sqlite3
 from datetime import datetime
 
+from apscheduler.schedulers.background import BackgroundScheduler
+
+from scanner import init_scan_table, scan_folders
+
 app = Flask(__name__)
 
 DATABASE = 'protocols.db'
@@ -175,4 +179,10 @@ def delete_protocol(id):
 
 if __name__ == '__main__':
     init_db()
+    init_scan_table()
+
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(scan_folders, 'interval', minutes=5)
+    scheduler.start()
+
     app.run(debug=True)
