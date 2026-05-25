@@ -6,8 +6,27 @@
 </h1>
 
 <div class="top-toolbar mb-4">
-    <form class="d-flex" method="GET">
-        <input type="text" name="search" class="form-control me-2" placeholder="Поиск" value="{{ search }}">
+    <form class="d-flex gap-2 flex-wrap" method="GET">
+        <input type="text" name="search" class="form-control" placeholder="Поиск" value="{{ search }}">
+
+        <select id="objectFilter" name="object_filter" class="form-select">
+            <option value="">Все объекты</option>
+            <option value="Б1" {% if object_filter == 'Б1' %}selected{% endif %}>Б1</option>
+            <option value="Б2" {% if object_filter == 'Б2' %}selected{% endif %}>Б2</option>
+            <option value="Б3" {% if object_filter == 'Б3' %}selected{% endif %}>Б3</option>
+            <option value="Б4" {% if object_filter == 'Б4' %}selected{% endif %}>Б4</option>
+            <option value="С1" {% if object_filter == 'С1' %}selected{% endif %}>С1</option>
+            <option value="С2" {% if object_filter == 'С2' %}selected{% endif %}>С2</option>
+            <option value="С3" {% if object_filter == 'С3' %}selected{% endif %}>С3</option>
+        </select>
+
+        <select id="typeFilter" name="type_filter" class="form-select">
+            <option value="">Все испытания</option>
+            <option value="Автоматические выключатели" {% if type_filter == 'Автоматические выключатели' %}selected{% endif %}>Автоматические выключатели</option>
+            <option value="Сопротивление изоляции" {% if type_filter == 'Сопротивление изоляции' %}selected{% endif %}>Сопротивление изоляции</option>
+            <option value="Высоковольтные испытания" {% if type_filter == 'Высоковольтные испытания' %}selected{% endif %}>Высоковольтные испытания</option>
+        </select>
+
         <button class="btn btn-industrial"><i class="fa-solid fa-magnifying-glass me-2"></i>Найти</button>
     </form>
 </div>
@@ -20,15 +39,27 @@
                 <tr>
                     <th>Номер</th>
                     <th>Объект</th>
+                    <th>Тип испытаний</th>
+                    <th>Ячейка</th>
                     <th>Название</th>
                     <th>Дата изменения</th>
                 </tr>
             </thead>
             <tbody>
             {% for protocol in protocols %}
+                {% set badge_class = 'bg-secondary' %}
+                {% if protocol.test_type == 'Высоковольтные испытания' %}
+                    {% set badge_class = 'bg-danger' %}
+                {% elif protocol.test_type == 'Автоматические выключатели' %}
+                    {% set badge_class = 'bg-primary' %}
+                {% elif protocol.test_type == 'Сопротивление изоляции' %}
+                    {% set badge_class = 'bg-success' %}
+                {% endif %}
                 <tr style="cursor:pointer" onclick="window.open('/open/{{ protocol.id }}')">
                     <td>{{ protocol.protocol_number }}</td>
                     <td>{{ protocol.object_code }}</td>
+                    <td><span class="badge {{ badge_class }}">{{ protocol.test_type }}</span></td>
+                    <td>{{ protocol.cell_number or '' }}</td>
                     <td>{{ protocol.protocol_name }}</td>
                     <td>{{ protocol.modified_date }}</td>
                 </tr>
@@ -44,7 +75,7 @@
 $(function () {
     $('#protocolsTable').DataTable({
         pageLength: 25,
-        order: [[3, 'desc']],
+        order: [[5, 'desc']],
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/ru.json' }
     });
 });
