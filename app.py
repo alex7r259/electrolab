@@ -26,9 +26,8 @@ def init_db():
             protocol_number TEXT,
             object_code TEXT,
             protocol_name TEXT,
-            object_name TEXT,
-            customer TEXT,
-            executor TEXT,
+            engineer_1 TEXT,
+            engineer_2 TEXT,
             protocol_date TEXT,
             notes TEXT
         )
@@ -73,10 +72,10 @@ def index():
         cursor.execute('''
             SELECT * FROM protocols
             WHERE protocol_number LIKE ?
+               OR object_code LIKE ?
                OR protocol_name LIKE ?
-               OR object_name LIKE ?
-               OR customer LIKE ?
-               OR executor LIKE ?
+               OR engineer_1 LIKE ?
+               OR engineer_2 LIKE ?
             ORDER BY id DESC
         ''', (like, like, like, like, like))
     else:
@@ -94,9 +93,8 @@ def add_protocol():
         protocol_number = get_next_protocol_number(object_code)
 
         protocol_name = request.form['protocol_name']
-        object_name = request.form['object_name']
-        customer = request.form['customer']
-        executor = request.form['executor']
+        engineer_1 = request.form['engineer_1']
+        engineer_2 = request.form['engineer_2']
         protocol_date = request.form['protocol_date']
         notes = request.form['notes']
 
@@ -104,12 +102,24 @@ def add_protocol():
         cursor = conn.cursor()
         cursor.execute('''
             INSERT INTO protocols (
-                protocol_number, object_code, protocol_name,
-                object_name, customer, executor, protocol_date, notes
+                protocol_number,
+                object_code,
+                protocol_name,
+                engineer_1,
+                engineer_2,
+                protocol_date,
+                notes
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (protocol_number, object_code, protocol_name, object_name,
-              customer, executor, protocol_date, notes))
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            protocol_number,
+            object_code,
+            protocol_name,
+            engineer_1,
+            engineer_2,
+            protocol_date,
+            notes
+        ))
         conn.commit()
         conn.close()
         return redirect(url_for('index'))
@@ -128,14 +138,13 @@ def edit_protocol(id):
     if request.method == 'POST':
         cursor.execute('''
             UPDATE protocols
-            SET object_code=?, protocol_name=?, object_name=?, customer=?, executor=?, protocol_date=?, notes=?
+            SET object_code=?, protocol_name=?, engineer_1=?, engineer_2=?, protocol_date=?, notes=?
             WHERE id=?
         ''', (
             request.form['object_code'],
             request.form['protocol_name'],
-            request.form['object_name'],
-            request.form['customer'],
-            request.form['executor'],
+            request.form['engineer_1'],
+            request.form['engineer_2'],
             request.form['protocol_date'],
             request.form['notes'],
             id,
