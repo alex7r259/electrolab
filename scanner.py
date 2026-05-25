@@ -31,8 +31,13 @@ TEST_TYPES = {
 }
 
 IGNORE_WORDS = [
-    'перечень', 'титул', 'договор', 'служеб', 'акт', 'scan', 'скан',
-    'письмо', 'путевка', 'путёвка', 'форма', 'бланк',
+    'перечень',
+    'титул',
+    'договор',
+    'акт',
+    'письмо',
+    'бланк',
+    'форма',
 ]
 
 SCAN_RUNNING = False
@@ -46,16 +51,7 @@ def is_valid_protocol(filename):
         return False
     if 'протокол' not in name:
         return False
-    ignore_words = [
-        'перечень',
-        'титул',
-        'договор',
-        'акт',
-        'письмо',
-        'бланк',
-        'форма',
-    ]
-    for word in ignore_words:
+    for word in IGNORE_WORDS:
         if word in name:
             return False
     return True
@@ -67,13 +63,6 @@ def detect_test_type(text):
         if keyword in text:
             return test_type
     return 'Прочее'
-
-
-def extract_cell_number(text):
-    match = re.search(r'яч\.?\s*№?\s*(\d+)', text, re.IGNORECASE)
-    if match:
-        return match.group(1)
-    return None
 
 
 def read_docx_text(path):
@@ -205,7 +194,7 @@ def scan_folders():
     print('Сканирование...')
 
     try:
-        for root, dirs, files in os.walk(ROOT_FOLDER):
+        for root, _, files in os.walk(ROOT_FOLDER):
             object_code = None
             for folder_name, code in OBJECT_MAP.items():
                 if folder_name in root:
