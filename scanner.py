@@ -124,7 +124,7 @@ def parse_protocol_header(text):
 
 
 def protocol_exists(path):
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, timeout=30)
     cursor = conn.cursor()
     cursor.execute(
         'SELECT id FROM protocols WHERE file_path=?',

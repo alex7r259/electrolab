@@ -1,5 +1,6 @@
 import os
 import sqlite3
+import threading
 
 from flask import Flask, abort, render_template, request, send_file
 
@@ -10,11 +11,15 @@ from scanner import scan_folders
 app = Flask(__name__)
 
 DATABASE = 'protocols.db'
+scheduler_started = False
+lock = threading.Lock()
 
 
 def init_db():
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, timeout=30)
     cursor = conn.cursor()
+    cursor.execute('PRAGMA journal_mode=WAL')
+    cursor.execute('PRAGMA synchronous=NORMAL')
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS protocols (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +78,7 @@ def index():
     type_filter = request.args.get('type_filter', '')
     year = request.args.get('year', '')
 
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, timeout=30)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
 
@@ -107,7 +112,7 @@ def index():
 
     if year:
         query += ' AND protocol_number LIKE ?'
-        params.append(f'{year}-%')
+        params.append(f'{year}%')
 
     if object_filter:
         query += ' AND object_code = ?'
@@ -135,7 +140,7 @@ def index():
 
 @app.route('/open/<int:id>')
 def open_protocol(id):
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, timeout=30)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute('SELECT * FROM protocols WHERE id=?', (id,))
@@ -155,8 +160,17 @@ if __name__ == '__main__':
     init_db()
     scan_folders()
 
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(scan_folders, 'interval', minutes=5, max_instances=1)
-    scheduler.start()
+    with lock:
+        if not scheduler_started:
+            scheduler = BackgroundScheduler()
+            scheduler.add_job(
+                scan_folders,
+                'interval',
+                minutes=5,
+                max_instances=1,
+                coalesce=True,
+            )
+            scheduler.start()
+            scheduler_started = True
 
     app.run(debug=True, use_reloader=False)
