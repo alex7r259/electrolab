@@ -47,28 +47,18 @@
                     <th>Номер</th>
                     <th>Объект</th>
                     <th>Тип испытаний</th>
-                    <th>Ячейка</th>
                     <th>Название</th>
                     <th>Дата изменения</th>
                 </tr>
             </thead>
             <tbody>
             {% for protocol in protocols %}
-                {% set badge_class = 'bg-secondary' %}
-                {% if protocol.test_type == 'Высоковольтные испытания' %}
-                    {% set badge_class = 'bg-danger' %}
-                {% elif protocol.test_type == 'Автоматические выключатели' %}
-                    {% set badge_class = 'bg-primary' %}
-                {% elif protocol.test_type == 'Сопротивление изоляции' %}
-                    {% set badge_class = 'bg-success' %}
-                {% endif %}
-                <tr style="cursor:pointer" onclick="window.open('/open/{{ protocol.id }}')">
+                <tr style="cursor:pointer" onclick="window.location='/open/{{ protocol.id }}'">
                     <td>{{ protocol.protocol_number }}</td>
-                    <td>{{ protocol.object_code }}</td>
-                    <td><span class="badge {{ badge_class }}">{{ protocol.test_type }}</span></td>
-                    <td>{{ protocol.cell_number or '' }}</td>
-                    <td>{{ protocol.protocol_name }}</td>
-                    <td>{{ protocol.modified_date }}</td>
+                    <td>{{ protocol.object_name or protocol.object_code }}</td>
+                    <td><span class="badge {% if protocol.test_type == 'Высоковольтные испытания' %}bg-danger{% elif protocol.test_type == 'Автоматические выключатели' %}bg-primary{% elif protocol.test_type == 'Сопротивление изоляции' %}bg-success{% else %}bg-secondary{% endif %}">{{ protocol.test_type }}</span></td>
+                    <td>{{ protocol.protocol_title or protocol.protocol_name }}</td>
+                    <td>{{ protocol.modified_date or '—' }}</td>
                 </tr>
             {% endfor %}
             </tbody>
@@ -82,7 +72,7 @@
 $(function () {
     $('#protocolsTable').DataTable({
         pageLength: 25,
-        order: [[5, 'desc']],
+        order: [[4, 'desc']],
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/ru.json' }
     });
 });
