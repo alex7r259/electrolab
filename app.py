@@ -182,7 +182,7 @@ if __name__ == '__main__':
     init_scan_table()
 
     scheduler = BackgroundScheduler()
-    scheduler.add_job(scan_folders, 'interval', minutes=5)
+    scheduler.add_job(scan_folders, 'interval', minutes=5, max_instances=1)
     scheduler.start()
 
     app.run(debug=True)
