@@ -78,55 +78,45 @@ def read_docx_text(path):
         return ''
 
 
-def parse_protocol_data(text):
+def get_header_text(text, max_lines=30):
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    return '\n'.join(lines[:max_lines])
+
+
+def parse_protocol_header(text):
+    header = get_header_text(text)
+
     data = {
+        'object_name': '',
         'protocol_number': '',
         'protocol_title': '',
-        'object_name': '',
         'test_date': '',
         'engineers': '',
     }
 
-    lines = text.split('\n')
-    match = re.search(
-        r'протокол\s*№?\s*([\w\-\/]+)',
-        text,
-        re.IGNORECASE,
-    )
+    match = re.search(r'Объект:\s*(.+)', header)
     if match:
-        data['protocol_number'] = match.group(1).strip()
-
-    for i, line in enumerate(lines):
-        if 'протокол' in line.lower():
-            if i + 1 < len(lines):
-                next_line = lines[i + 1].strip()
-                if len(next_line) > 3:
-                    data['protocol_title'] = next_line
-                    break
-
-    object_patterns = [
-        r'объект[:\s]+(.+)',
-        r'на объекте[:\s]+(.+)',
-    ]
-    for pattern in object_patterns:
-        match = re.search(pattern, text, re.IGNORECASE)
-        if match:
-            data['object_name'] = match.group(1).strip()
-            break
+        data['object_name'] = match.group(1).strip()
 
     match = re.search(
-        r'дата проведения испытаний[:\s]+([0-9\.]+)',
-        text,
-        re.IGNORECASE,
+        r'Дата проведения испытаний:\s*([0-9]{2}\.[0-9]{2}\.[0-9]{4})',
+        header,
     )
     if match:
         data['test_date'] = match.group(1)
 
-    match = re.search(
-        r'испытания произвели[:\s]+(.+)',
-        text,
-        re.IGNORECASE,
-    )
+    match = re.search(r'Протокол\s*№\s*([\w\-]+)', header)
+    if match:
+        data['protocol_number'] = match.group(1)
+
+    lines = header.split('\n')
+    for i, line in enumerate(lines):
+        if 'Протокол' in line and '№' in line:
+            if i + 1 < len(lines):
+                data['protocol_title'] = lines[i + 1].strip()
+            break
+
+    match = re.search(r'Испытания произвели:\s*(.+)', header)
     if match:
         data['engineers'] = match.group(1).strip()
 
@@ -214,7 +204,7 @@ def scan_folders():
                 parsed = {}
 
                 content_text = read_docx_text(full_path)
-                parsed = parse_protocol_data(content_text)
+                parsed = parse_protocol_header(content_text)
 
                 test_type = detect_test_type(file)
                 modified_date = datetime.fromtimestamp(
