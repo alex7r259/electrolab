@@ -1,6 +1,7 @@
 import os
 import re
 import sqlite3
+import threading
 
 from datetime import datetime
 
@@ -40,7 +41,7 @@ IGNORE_WORDS = [
     'форма',
 ]
 
-SCAN_RUNNING = False
+scan_lock = threading.Lock()
 
 
 def is_valid_protocol(filename):
@@ -60,13 +61,15 @@ def is_valid_protocol(filename):
 def detect_test_type(text):
     text = text.lower()
     for keyword, test_type in TEST_TYPES.items():
-        if keyword in text:
+        if re.search(rf'\b{re.escape(keyword)}', text):
             return test_type
     return 'Прочее'
 
 
 def read_docx_text(path):
     try:
+        if not os.path.exists(path):
+            return ''
         doc = Document(path)
         text = []
         for p in doc.paragraphs:
@@ -94,7 +97,7 @@ def parse_protocol_header(text):
         'engineers': '',
     }
 
-    match = re.search(r'Объект:\s*(.+)', header)
+    match = re.search(r'Объект:\s*(.+?)(?:\n|Проект:|Дата|Протокол)', header)
     if match:
         data['object_name'] = match.group(1).strip()
 
@@ -105,7 +108,7 @@ def parse_protocol_header(text):
     if match:
         data['test_date'] = match.group(1)
 
-    match = re.search(r'Протокол\s*№\s*([\w\-]+)', header)
+    match = re.search(r'Протокол\s*№\s*([0-9A-Za-zА-Яа-я\-–—]+)', header)
     if match:
         data['protocol_number'] = match.group(1)
 
@@ -123,24 +126,12 @@ def parse_protocol_header(text):
     return data
 
 
-def protocol_exists(path):
-    conn = sqlite3.connect(DATABASE, timeout=30)
-    cursor = conn.cursor()
-    cursor.execute(
-        'SELECT id FROM protocols WHERE file_path=?',
-        (path,),
-    )
-    result = cursor.fetchone()
-    conn.close()
-    return result is not None
-
-
 def add_protocol(parsed, protocol_name, object_code, test_type, content_text, file_path, modified_date):
     try:
         conn = sqlite3.connect(DATABASE, timeout=30)
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT OR IGNORE INTO protocols (
+            INSERT INTO protocols (
                 protocol_number,
                 protocol_name,
                 object_code,
@@ -169,18 +160,16 @@ def add_protocol(parsed, protocol_name, object_code, test_type, content_text, fi
         ))
         conn.commit()
         conn.close()
+    except sqlite3.IntegrityError:
+        print(f'Уже существует: {file_path}')
     except Exception as e:
         print(f'Ошибка БД: {e}')
 
 
 def scan_folders():
-    global SCAN_RUNNING
-
-    if SCAN_RUNNING:
+    if not scan_lock.acquire(blocking=False):
         print('Сканирование уже выполняется')
         return
-
-    SCAN_RUNNING = True
     print('Сканирование...')
 
     try:
@@ -196,17 +185,18 @@ def scan_folders():
                     continue
 
                 full_path = os.path.join(root, file)
-                if protocol_exists(full_path):
-                    continue
-
-                protocol_name = os.path.splitext(file)[0]
                 content_text = ''
                 parsed = {}
 
                 content_text = read_docx_text(full_path)
                 parsed = parse_protocol_header(content_text)
 
-                test_type = detect_test_type(file)
+                protocol_name = (
+                    parsed.get('protocol_title')
+                    or parsed.get('protocol_number')
+                    or file
+                )
+                test_type = detect_test_type(content_text)
                 modified_date = datetime.fromtimestamp(
                     os.path.getmtime(full_path)
                 ).strftime('%d.%m.%Y %H:%M')
@@ -226,4 +216,4 @@ def scan_folders():
     except Exception as e:
         print(f'Ошибка сканирования: {e}')
     finally:
-        SCAN_RUNNING = False
+        scan_lock.release()
