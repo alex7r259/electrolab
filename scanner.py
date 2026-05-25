@@ -31,8 +31,13 @@ TEST_TYPES = {
 }
 
 IGNORE_WORDS = [
-    'перечень', 'титул', 'договор', 'служеб', 'акт', 'scan', 'скан',
-    'письмо', 'путевка', 'путёвка', 'форма', 'бланк',
+    'перечень',
+    'титул',
+    'договор',
+    'акт',
+    'письмо',
+    'бланк',
+    'форма',
 ]
 
 SCAN_RUNNING = False
@@ -46,6 +51,9 @@ def is_valid_protocol(filename):
         return False
     if 'протокол' not in name:
         return False
+    for word in IGNORE_WORDS:
+        if word in name:
+            return False
     return True
 
 
@@ -55,13 +63,6 @@ def detect_test_type(text):
         if keyword in text:
             return test_type
     return 'Прочее'
-
-
-def extract_cell_number(text):
-    match = re.search(r'яч\.?\s*№?\s*(\d+)', text, re.IGNORECASE)
-    if match:
-        return match.group(1)
-    return None
 
 
 def read_docx_text(path):
@@ -144,7 +145,7 @@ def protocol_exists(path):
     return result is not None
 
 
-def add_protocol(parsed, protocol_name, object_code, test_type, content_text, file_path, modified_date, cell_number):
+def add_protocol(parsed, protocol_name, object_code, test_type, content_text, file_path, modified_date):
     try:
         conn = sqlite3.connect(DATABASE, timeout=30)
         cursor = conn.cursor()
@@ -160,10 +161,9 @@ def add_protocol(parsed, protocol_name, object_code, test_type, content_text, fi
                 test_type,
                 content_text,
                 file_path,
-                modified_date,
-                cell_number
+                modified_date
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             parsed.get('protocol_number'),
             protocol_name,
@@ -176,7 +176,6 @@ def add_protocol(parsed, protocol_name, object_code, test_type, content_text, fi
             content_text,
             file_path,
             modified_date,
-            cell_number,
         ))
         conn.commit()
         conn.close()
@@ -195,7 +194,7 @@ def scan_folders():
     print('Сканирование...')
 
     try:
-        for root, dirs, files in os.walk(ROOT_FOLDER):
+        for root, _, files in os.walk(ROOT_FOLDER):
             object_code = None
             for folder_name, code in OBJECT_MAP.items():
                 if folder_name in root:
@@ -222,9 +221,6 @@ def scan_folders():
                     os.path.getmtime(full_path)
                 ).strftime('%d.%m.%Y %H:%M')
 
-                combined_text = f'{file}\n{content_text}'
-                cell_number = extract_cell_number(combined_text)
-
                 add_protocol(
                     parsed,
                     protocol_name,
@@ -233,7 +229,6 @@ def scan_folders():
                     content_text,
                     full_path,
                     modified_date,
-                    cell_number,
                 )
 
                 print(f'Добавлен: {file}')
