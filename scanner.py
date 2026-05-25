@@ -46,6 +46,18 @@ def is_valid_protocol(filename):
         return False
     if 'протокол' not in name:
         return False
+    ignore_words = [
+        'перечень',
+        'титул',
+        'договор',
+        'акт',
+        'письмо',
+        'бланк',
+        'форма',
+    ]
+    for word in ignore_words:
+        if word in name:
+            return False
     return True
 
 
@@ -144,7 +156,7 @@ def protocol_exists(path):
     return result is not None
 
 
-def add_protocol(parsed, protocol_name, object_code, test_type, content_text, file_path, modified_date, cell_number):
+def add_protocol(parsed, protocol_name, object_code, test_type, content_text, file_path, modified_date):
     try:
         conn = sqlite3.connect(DATABASE, timeout=30)
         cursor = conn.cursor()
@@ -160,10 +172,9 @@ def add_protocol(parsed, protocol_name, object_code, test_type, content_text, fi
                 test_type,
                 content_text,
                 file_path,
-                modified_date,
-                cell_number
+                modified_date
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             parsed.get('protocol_number'),
             protocol_name,
@@ -176,7 +187,6 @@ def add_protocol(parsed, protocol_name, object_code, test_type, content_text, fi
             content_text,
             file_path,
             modified_date,
-            cell_number,
         ))
         conn.commit()
         conn.close()
@@ -222,9 +232,6 @@ def scan_folders():
                     os.path.getmtime(full_path)
                 ).strftime('%d.%m.%Y %H:%M')
 
-                combined_text = f'{file}\n{content_text}'
-                cell_number = extract_cell_number(combined_text)
-
                 add_protocol(
                     parsed,
                     protocol_name,
@@ -233,7 +240,6 @@ def scan_folders():
                     content_text,
                     full_path,
                     modified_date,
-                    cell_number,
                 )
 
                 print(f'Добавлен: {file}')
