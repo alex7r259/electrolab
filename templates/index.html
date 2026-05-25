@@ -10,10 +10,6 @@
         <input type="text" name="search" class="form-control me-2" placeholder="Поиск" value="{{ search }}">
         <button class="btn btn-industrial"><i class="fa-solid fa-magnifying-glass me-2"></i>Найти</button>
     </form>
-
-    <a href="{{ url_for('add_protocol') }}" class="btn btn-industrial">
-        <i class="fa-solid fa-plus me-2"></i>Добавить протокол
-    </a>
 </div>
 
 <div class="card glass-card border-0">
@@ -22,28 +18,19 @@
         <table id="protocolsTable" class="table table-hover align-middle">
             <thead>
                 <tr>
-                    <th>№</th>
-                    <th>Название</th>
+                    <th>Номер</th>
                     <th>Объект</th>
-                    <th>Инженер 1</th>
-                    <th>Инженер 2</th>
-                    <th>Дата</th>
-                    <th>Действия</th>
+                    <th>Название</th>
+                    <th>Дата изменения</th>
                 </tr>
             </thead>
             <tbody>
             {% for protocol in protocols %}
-                <tr>
+                <tr style="cursor:pointer" onclick="window.open('/open/{{ protocol.id }}')">
                     <td>{{ protocol.protocol_number }}</td>
-                    <td>{{ protocol.protocol_name }}</td>
                     <td>{{ protocol.object_code }}</td>
-                    <td>{{ protocol.engineer_1 }}</td>
-                    <td>{{ protocol.engineer_2 }}</td>
-                    <td>{{ protocol.protocol_date }}</td>
-                    <td>
-                        <a href="{{ url_for('edit_protocol', id=protocol.id) }}" class="btn btn-sm btn-secondary"><i class="fa-solid fa-pen"></i></a>
-                        <a href="{{ url_for('delete_protocol', id=protocol.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Удалить протокол?')"><i class="fa-solid fa-trash"></i></a>
-                    </td>
+                    <td>{{ protocol.protocol_name }}</td>
+                    <td>{{ protocol.modified_date }}</td>
                 </tr>
             {% endfor %}
             </tbody>
@@ -57,7 +44,7 @@
 $(function () {
     $('#protocolsTable').DataTable({
         pageLength: 25,
-        order: [[5, 'desc']],
+        order: [[3, 'desc']],
         language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/ru.json' }
     });
 });
