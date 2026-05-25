@@ -23,13 +23,59 @@
             name="protocol_name"
             class="form-control"
             value="{{ protocol.protocol_name }}"
+            required
         >
     </div>
 
     <div class="mb-3">
-        <label class="form-label">Объект</label>
+        <label class="form-label">Код объекта</label>
+        <select name="object_code" class="form-control" required>
+            {% for code, name in objects.items() %}
+            <option value="{{ code }}" {% if protocol.object_code == code %}selected{% endif %}>
+                {{ code }} — {{ name }}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Инженер 1</label>
         <input
             type="text"
-            name="object_name"
+            name="engineer_1"
             class="form-control"
-            value="{{ protocol.object_name }}
+            value="{{ protocol.engineer_1 }}"
+        >
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Инженер 2</label>
+        <input
+            type="text"
+            name="engineer_2"
+            class="form-control"
+            value="{{ protocol.engineer_2 }}"
+        >
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Дата</label>
+        <input
+            type="date"
+            name="protocol_date"
+            class="form-control"
+            value="{{ protocol.protocol_date }}"
+        >
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Примечание</label>
+        <textarea name="notes" class="form-control">{{ protocol.notes }}</textarea>
+    </div>
+
+    <button class="btn btn-primary">Сохранить изменения</button>
+    <a href="{{ url_for('index') }}" class="btn btn-secondary mt-2">Отмена</a>
+
+</form>
+
+{% endblock %}
