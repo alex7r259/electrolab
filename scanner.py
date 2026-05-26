@@ -2,6 +2,7 @@ import os
 import re
 import sqlite3
 import threading
+from datetime import datetime
 
 from docx import Document
 
@@ -40,6 +41,7 @@ IGNORE_WORDS = [
 ]
 
 scan_lock = threading.Lock()
+SCAN_RUNNING = False
 
 
 def is_valid_protocol(filename):
@@ -70,7 +72,7 @@ def read_docx_text(path):
             return ''
         doc = Document(path)
         text = []
-        for p in doc.paragraphs:
+        for p in doc.paragraphs[:40]:
             if p.text.strip():
                 text.append(p.text.strip())
         return '\n'.join(text)
@@ -187,49 +189,102 @@ def add_protocol(parsed, protocol_name, object_code, test_type, content_text, fi
 
 
 def scan_folders():
-    if not scan_lock.acquire(blocking=False):
+    global SCAN_RUNNING
+
+    if SCAN_RUNNING:
         print('Сканирование уже выполняется')
         return
+
+    SCAN_RUNNING = True
     print('Сканирование...')
 
+    conn = sqlite3.connect(DATABASE, timeout=30)
+    cursor = conn.cursor()
+
     try:
+        existing_paths = set()
+
+        cursor.execute(
+            'SELECT file_path FROM protocols'
+        )
+
+        for row in cursor.fetchall():
+            existing_paths.add(row[0])
+
         for root, _, files in os.walk(ROOT_FOLDER):
+
             object_code = None
+
             for folder_name, code in OBJECT_MAP.items():
                 if folder_name in root:
                     object_code = code
                     break
 
             for file in files:
+
                 if not is_valid_protocol(file):
                     continue
 
                 full_path = os.path.join(root, file)
-                content_text = ''
-                parsed = {}
 
-                content_text = read_docx_text(full_path)
-                parsed = parse_protocol_header(content_text)
-                parsed['object_name'] = normalize_object_name(parsed.get('object_name'))
+                if full_path in existing_paths:
+                    continue
 
-                protocol_name = (
-                    parsed.get('protocol_title')
-                    or parsed.get('protocol_number')
-                    or file
-                )
-                test_type = detect_test_type(content_text)
-                add_protocol(
-                    parsed,
-                    protocol_name,
-                    object_code,
-                    test_type,
-                    content_text,
-                    full_path,
-                )
+                try:
+                    protocol_name = os.path.splitext(file)[0]
 
-                print(f'Добавлен: {file}')
+                    content_text = read_docx_text(full_path)
+
+                    if not content_text:
+                        continue
+
+                    parsed = parse_protocol_header(content_text)
+                    parsed['object_name'] = normalize_object_name(parsed.get('object_name'))
+
+                    test_type = detect_test_type(content_text)
+                    modified_date = datetime.fromtimestamp(
+                        os.path.getmtime(full_path)
+                    ).strftime('%d.%m.%Y %H:%M')
+
+                    cursor.execute('''
+                        INSERT OR IGNORE INTO protocols (
+                            protocol_number,
+                            protocol_name,
+                            object_code,
+                            object_name,
+                            protocol_title,
+                            test_date,
+                            engineers,
+                            test_type,
+                            content_text,
+                            file_path,
+                            modified_date
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        parsed.get('protocol_number'),
+                        protocol_name,
+                        object_code,
+                        parsed.get('object_name'),
+                        parsed.get('protocol_title'),
+                        parsed.get('test_date'),
+                        parsed.get('engineers'),
+                        test_type,
+                        content_text,
+                        full_path,
+                        modified_date,
+                    ))
+
+                    print(f'Добавлен: {file}')
+
+                except Exception as e:
+                    print(f'Ошибка файла {file}: {e}')
+
+        conn.commit()
 
     except Exception as e:
         print(f'Ошибка сканирования: {e}')
+
     finally:
-        scan_lock.release()
+        conn.close()
+        SCAN_RUNNING = False
