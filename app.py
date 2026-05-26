@@ -175,19 +175,25 @@ def open_protocol(id):
 
 if __name__ == '__main__':
     init_db()
-    scan_folders()
 
-    with lock:
-        if not scheduler_started:
-            scheduler = BackgroundScheduler()
-            scheduler.add_job(
-                scan_folders,
-                'interval',
-                minutes=5,
-                max_instances=1,
-                coalesce=True,
-            )
-            scheduler.start()
-            scheduler_started = True
+    scheduler = BackgroundScheduler()
 
-    app.run(debug=True, use_reloader=False)
+    scheduler.add_job(
+        scan_folders,
+        'interval',
+        minutes=5,
+        max_instances=1
+    )
+
+    scheduler.start()
+
+    threading.Thread(
+        target=scan_folders,
+        daemon=True
+    ).start()
+
+    app.run(
+        debug=True,
+        use_reloader=False,
+        threaded=True
+    )
