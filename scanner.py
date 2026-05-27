@@ -95,8 +95,12 @@ def extract_text_from_docx(path):
 
 def clean_text(text):
     text = text.replace("\x07", " ")
-    text = re.sub(r"[\x00-\x1f]", " ", text)
-    text = re.sub(r"\s+", " ", text)
+    # удаляем мусор, но сохраняем \n и \t
+    text = re.sub(r"[\x00-\x08\x0b-\x1f]", " ", text)
+    # убираем лишние пробелы
+    text = re.sub(r"[ \t]+", " ", text)
+    # чистим пустые строки
+    text = re.sub(r"\n+", "\n", text)
     return text.strip()
 
 
@@ -188,7 +192,7 @@ def extract_protocol_data(path):
     )
 
     protocol_match = re.search(
-        r"Протокол №\s*([^\n\r]+)",
+        r"Протокол\s*№\s*([A-Za-zА-Яа-я0-9\-\/]+)",
         text,
         re.IGNORECASE
     )
@@ -221,7 +225,13 @@ def extract_protocol_data(path):
 
     object_name = re.sub(r"\s+", " ", object_match.group(1)).strip() if object_match else ""
 
-    protocol_number = protocol_match.group(1).strip() if protocol_match else ""
+    protocol_number = ""
+    if protocol_match:
+        protocol_number = protocol_match.group(1).strip()
+        protocol_number = re.sub(r"\s+", " ", protocol_number)
+        # защита от огромных значений
+        if len(protocol_number) > 50:
+            protocol_number = protocol_number[:50]
 
     try:
 
