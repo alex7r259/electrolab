@@ -4,6 +4,7 @@ import time
 
 from datetime import datetime
 
+import pythoncom
 import win32com.client
 import tempfile
 
@@ -50,6 +51,9 @@ def is_protocol(filename):
 
 def read_word_file(path):
 
+    word = None
+    com_initialized = False
+
     try:
 
         # DOCX
@@ -71,7 +75,10 @@ def read_word_file(path):
         # DOC
         elif path.lower().endswith(".doc"):
 
-            word = win32com.client.Dispatch("Word.Application")
+            pythoncom.CoInitialize()
+            com_initialized = True
+
+            word = win32com.client.DispatchEx("Word.Application")
 
             word.Visible = False
 
@@ -79,9 +86,7 @@ def read_word_file(path):
 
             text = doc.Content.Text
 
-            doc.Close()
-
-            word.Quit()
+            doc.Close(False)
 
             return text
 
@@ -90,6 +95,14 @@ def read_word_file(path):
         print(f"Ошибка чтения файла {path}: {e}")
 
         return ""
+
+    finally:
+
+        if word:
+            word.Quit()
+
+        if com_initialized:
+            pythoncom.CoUninitialize()
 
     return ""
 
