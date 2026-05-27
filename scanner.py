@@ -287,6 +287,7 @@ def scan_files(app):
     with app.app_context():
 
         print("Сканирование файлов...")
+        scanned_paths = set()
 
         for root, dirs, files in os.walk(SCAN_PATH):
 
@@ -314,6 +315,7 @@ def scan_files(app):
                         continue
 
                     path = os.path.join(root, file)
+                    scanned_paths.add(path)
 
                     if len(path) > 240:
                         continue
@@ -341,6 +343,26 @@ def scan_files(app):
 
                 except Exception as e:
                     print(e)
+
+        try:
+            db_paths = {
+                row[0]
+                for row in db.session.query(Protocol.file_path).all()
+                if row[0]
+            }
+
+            deleted_paths = db_paths - scanned_paths
+
+            if deleted_paths:
+                deleted_count = Protocol.query.filter(
+                    Protocol.file_path.in_(deleted_paths)
+                ).delete(synchronize_session=False)
+                db.session.commit()
+                print(f"Удалено из БД (файлы отсутствуют): {deleted_count}")
+
+        except Exception as e:
+            db.session.rollback()
+            print("Ошибка удаления отсутствующих файлов:", e)
 
         print("Сканирование завершено")
 
