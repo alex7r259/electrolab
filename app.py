@@ -21,6 +21,12 @@ app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///protocols.db"
 
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+    "connect_args": {
+        "check_same_thread": False
+    }
+}
+
 db.init_app(app)
 
 

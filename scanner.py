@@ -11,7 +11,7 @@ from models import Protocol, db
 
 SCAN_PATH = r"\\Admin\рабочая"
 
-VALID_EXTENSIONS = [".docx", ".doc"]
+VALID_EXTENSIONS = [".docx"]
 
 IGNORE_WORDS = [
     "перечень протоколов",
@@ -24,10 +24,21 @@ def is_protocol(filename):
 
     name = filename.lower()
 
+    # временные файлы Word
+    if name.startswith("~$"):
+        return False
+
     if "протокол" not in name:
         return False
 
-    for word in IGNORE_WORDS:
+    ignore_words = [
+        "перечень протоколов",
+        "реестр протоколов",
+        "журнал протоколов"
+    ]
+
+    for word in ignore_words:
+
         if word in name:
             return False
 
@@ -38,6 +49,9 @@ def extract_text_docx(path):
 
     try:
 
+        if path.startswith("~$"):
+            return ""
+
         doc = Document(path)
 
         text = []
@@ -46,14 +60,18 @@ def extract_text_docx(path):
             text.append(p.text)
 
         for table in doc.tables:
+
             for row in table.rows:
+
                 for cell in row.cells:
                     text.append(cell.text)
 
         return "\n".join(text)
 
     except Exception as e:
+
         print(f"Ошибка чтения файла {path}: {e}")
+
         return ""
 
 
