@@ -136,9 +136,9 @@ def extract_protocol_data(path):
     protocol_name = filename.replace(".docx", "").replace(".doc", "")
 
     object_match = re.search(
-        r"Объект:\s*(.+)",
+        r"Объект\s*[:\-]?\s*(.*?)(?:Дата проведения|Протокол №|Испытания|Назначение|Проект|Основные характеристики)",
         text,
-        re.IGNORECASE
+        re.IGNORECASE | re.DOTALL
     )
 
     date_match = re.search(
@@ -179,7 +179,7 @@ def extract_protocol_data(path):
 
         print("Ошибка поиска инженеров:", e)
 
-    object_name = object_match.group(1).strip() if object_match else ""
+    object_name = re.sub(r"\s+", " ", object_match.group(1)).strip() if object_match else ""
 
     protocol_number = protocol_match.group(1).strip() if protocol_match else ""
 
