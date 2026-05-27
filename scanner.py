@@ -74,21 +74,7 @@ def read_word_file(path):
 
         # DOC
         elif path.lower().endswith(".doc"):
-
-            pythoncom.CoInitialize()
-            com_initialized = True
-
-            word = win32com.client.DispatchEx("Word.Application")
-
-            word.Visible = False
-
-            doc = word.Documents.Open(path)
-
-            text = doc.Content.Text
-
-            doc.Close(False)
-
-            return text
+            return read_doc_file(path)
 
     except Exception as e:
 
@@ -105,6 +91,62 @@ def read_word_file(path):
             pythoncom.CoUninitialize()
 
     return ""
+
+
+def read_doc_file(path):
+
+    if len(path) > 240:
+        print(f"Слишком длинный путь: {path}")
+        return ""
+
+    word = None
+    doc = None
+
+    try:
+
+        pythoncom.CoInitialize()
+
+        word = win32com.client.DispatchEx("Word.Application")
+
+        word.Visible = False
+        word.DisplayAlerts = 0
+        word.AutomationSecurity = 3
+
+        doc = word.Documents.Open(
+            path,
+            ReadOnly=True,
+            ConfirmConversions=False,
+            AddToRecentFiles=False,
+            Visible=False,
+            OpenAndRepair=True,
+            NoEncodingDialog=True
+        )
+
+        text = doc.Content.Text
+
+        return text
+
+    except Exception as e:
+
+        print(f"Ошибка DOC {path}: {e}")
+
+        return ""
+
+    finally:
+
+        try:
+            if doc:
+                doc.Close(False)
+        except Exception:
+            pass
+
+        try:
+            if word:
+                word.Quit()
+        except Exception:
+            pass
+
+        pythoncom.CoUninitialize()
 
 
 def convert_doc_to_docx(path):
