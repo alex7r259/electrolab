@@ -1,176 +1,87 @@
 import os
-import sqlite3
 import threading
+import subprocess
 
-from flask import Flask, abort, render_template, request, send_file
+from datetime import datetime
 
-from apscheduler.schedulers.background import BackgroundScheduler
+from flask import Flask
+from flask import render_template
+from flask import jsonify
 
-from scanner import scan_folders
+from waitress import serve
+
+from models import db, Protocol
+
+from scanner import background_scan
+
 
 app = Flask(__name__)
 
-DATABASE = 'protocols.db'
-scheduler_started = False
-lock = threading.Lock()
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///protocols.db"
+
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db.init_app(app)
 
 
-def init_db():
-    conn = sqlite3.connect(DATABASE, timeout=30)
-    cursor = conn.cursor()
-    cursor.execute('PRAGMA journal_mode=WAL')
-    cursor.execute('PRAGMA synchronous=NORMAL')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS protocols (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            protocol_number TEXT,
-            protocol_name TEXT,
-            object_code TEXT,
-            object_name TEXT,
-            protocol_title TEXT,
-            test_date TEXT,
-            engineers TEXT,
-            test_type TEXT,
-            content_text TEXT,
-            file_path TEXT UNIQUE,
-            modified_date TEXT
-        )
-    ''')
-
-    cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_protocol_number
-        ON protocols(protocol_number)
-    ''')
-
-    cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_object_code
-        ON protocols(object_code)
-    ''')
-
-    cursor.execute('''
-        CREATE INDEX IF NOT EXISTS idx_test_type
-        ON protocols(test_type)
-    ''')
-
-    cursor.execute("PRAGMA table_info(protocols)")
-    existing_columns = {row[1] for row in cursor.fetchall()}
-    required_columns = {
-        'test_type': 'TEXT',
-        'content_text': 'TEXT',
-        'object_name': 'TEXT',
-        'protocol_title': 'TEXT',
-        'test_date': 'TEXT',
-        'engineers': 'TEXT',
-    }
-
-    for column_name, column_type in required_columns.items():
-        if column_name not in existing_columns:
-            cursor.execute(f'ALTER TABLE protocols ADD COLUMN {column_name} {column_type}')
-
-    conn.commit()
-    conn.close()
+with app.app_context():
+    db.create_all()
 
 
-@app.route('/')
+@app.route("/")
 def index():
-    search = request.args.get('search', '')
-    object_filter = request.args.get('object_filter', '')
-    type_filter = request.args.get('type_filter', '')
-    year = request.args.get('year', '')
 
-    conn = sqlite3.connect(DATABASE, timeout=30)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
+    protocols = Protocol.query.order_by(
+        Protocol.test_date.desc()
+    ).all()
 
-    query = '''
-        SELECT *
-        FROM protocols
-        WHERE 1=1
-    '''
-
-    params = []
-
-    if search:
-        query += '''
-            AND (
-                COALESCE(protocol_number, '') LIKE ?
-                OR COALESCE(protocol_name, '') LIKE ?
-                OR COALESCE(protocol_title, '') LIKE ?
-                OR COALESCE(object_name, '') LIKE ?
-                OR COALESCE(engineers, '') LIKE ?
-                OR COALESCE(content_text, '') LIKE ?
+    years = sorted(
+        list(
+            set(
+                p.test_date.year
+                for p in protocols
+                if p.test_date
             )
-        '''
-        params.extend([
-            f'%{search}%',
-            f'%{search}%',
-            f'%{search}%',
-            f'%{search}%',
-            f'%{search}%',
-            f'%{search}%',
-        ])
-
-    if year:
-        query += ' AND protocol_number LIKE ?'
-        params.append(f'{year}%')
-
-    if object_filter:
-        query += ' AND object_code = ?'
-        params.append(object_filter)
-
-    if type_filter:
-        query += ' AND test_type = ?'
-        params.append(type_filter)
-
-    query += ' ORDER BY modified_date DESC'
-
-    cursor.execute(query, params)
-    protocols = cursor.fetchall()
-    conn.close()
+        ),
+        reverse=True
+    )
 
     return render_template(
-        'index.html',
+        "index.html",
         protocols=protocols,
-        search=search,
-        object_filter=object_filter,
-        type_filter=type_filter,
-        year=year,
+        years=years
     )
 
 
-@app.route('/open/<int:id>')
-def open_protocol(id):
-    conn = sqlite3.connect(DATABASE, timeout=30)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM protocols WHERE id=?', (id,))
-    protocol = cursor.fetchone()
-    conn.close()
+@app.route("/open/<int:protocol_id>")
+def open_file(protocol_id):
 
-    if not protocol:
-        abort(404)
+    protocol = Protocol.query.get_or_404(protocol_id)
 
-    if not os.path.exists(protocol['file_path']):
-        return 'Файл не найден'
+    path = protocol.file_path
 
-    return send_file(protocol['file_path'])
+    subprocess.Popen(
+        f'explorer /select,"{path}"'
+    )
+
+    return jsonify({"success": True})
 
 
-if __name__ == '__main__':
-    init_db()
-    scan_folders()
+if __name__ == "__main__":
 
-    with lock:
-        if not scheduler_started:
-            scheduler = BackgroundScheduler()
-            scheduler.add_job(
-                scan_folders,
-                'interval',
-                minutes=5,
-                max_instances=1,
-                coalesce=True,
-            )
-            scheduler.start()
-            scheduler_started = True
+    scan_thread = threading.Thread(
+        target=background_scan,
+        args=(app,),
+        daemon=True
+    )
 
-    app.run(debug=True, use_reloader=False)
+    scan_thread.start()
+
+    print("WEB сервер запущен")
+
+    serve(
+        app,
+        host="0.0.0.0",
+        port=5000,
+        threads=8
+    )
