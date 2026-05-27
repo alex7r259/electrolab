@@ -7,6 +7,7 @@ from datetime import datetime
 from flask import Flask
 from flask import render_template
 from flask import jsonify
+from flask import request
 
 from waitress import serve
 
@@ -56,6 +57,38 @@ def index():
         "index.html",
         protocols=protocols,
         years=years
+    )
+
+
+
+
+@app.route("/print")
+def print_protocols():
+
+    year = request.args.get("year", type=int)
+
+    query = Protocol.query
+
+    if year:
+        query = query.filter(db.extract("year", Protocol.test_date) == year)
+
+    protocols = query.order_by(Protocol.test_date.asc()).all()
+
+    years = [
+        row[0]
+        for row in db.session.query(
+            db.extract("year", Protocol.test_date)
+        ).filter(Protocol.test_date.isnot(None)).distinct().order_by(
+            db.extract("year", Protocol.test_date).desc()
+        ).all()
+        if row[0]
+    ]
+
+    return render_template(
+        "print.html",
+        protocols=protocols,
+        years=years,
+        selected_year=year
     )
 
 
