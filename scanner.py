@@ -4,6 +4,9 @@ import time
 
 from datetime import datetime
 
+import win32com.client
+import tempfile
+
 from docx import Document
 
 from models import Protocol, db
@@ -11,7 +14,7 @@ from models import Protocol, db
 
 SCAN_PATH = r"\\Admin\рабочая"
 
-VALID_EXTENSIONS = [".docx"]
+VALID_EXTENSIONS = [".docx", ".doc"]
 
 IGNORE_WORDS = [
     "перечень протоколов",
@@ -45,28 +48,42 @@ def is_protocol(filename):
     return True
 
 
-def extract_text_docx(path):
+def read_word_file(path):
 
     try:
 
-        if path.startswith("~$"):
-            return ""
+        # DOCX
+        if path.lower().endswith(".docx"):
 
-        doc = Document(path)
+            doc = Document(path)
 
-        text = []
+            text = [p.text for p in doc.paragraphs]
 
-        for p in doc.paragraphs:
-            text.append(p.text)
+            for table in doc.tables:
 
-        for table in doc.tables:
+                for row in table.rows:
 
-            for row in table.rows:
+                    for cell in row.cells:
+                        text.append(cell.text)
 
-                for cell in row.cells:
-                    text.append(cell.text)
+            return "\n".join(text)
 
-        return "\n".join(text)
+        # DOC
+        elif path.lower().endswith(".doc"):
+
+            word = win32com.client.Dispatch("Word.Application")
+
+            word.Visible = False
+
+            doc = word.Documents.Open(path)
+
+            text = doc.Content.Text
+
+            doc.Close()
+
+            word.Quit()
+
+            return text
 
     except Exception as e:
 
@@ -74,10 +91,29 @@ def extract_text_docx(path):
 
         return ""
 
+    return ""
+
+
+def convert_doc_to_docx(path):
+
+    word = win32com.client.Dispatch("Word.Application")
+
+    doc = word.Documents.Open(path)
+
+    new_path = path + "x"
+
+    doc.SaveAs(new_path, FileFormat=16)
+
+    doc.Close()
+
+    word.Quit()
+
+    return new_path
+
 
 def extract_protocol_data(path):
 
-    text = extract_text_docx(path)
+    text = read_word_file(path)
 
     if not text:
         return None
@@ -188,7 +224,18 @@ def scan_files(app):
 
                 try:
 
+                    filename_lower = file.lower()
+
+                    if file.startswith("~$"):
+                        continue
+
                     if not is_protocol(file):
+                        continue
+
+                    if not (
+                        filename_lower.endswith(".docx")
+                        or filename_lower.endswith(".doc")
+                    ):
                         continue
 
                     ext = os.path.splitext(file)[1].lower()
