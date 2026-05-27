@@ -22,6 +22,34 @@
             {{ protocols|length }}
         </div>
 
+        <div class="kpi-sub">
+            Найдено в сетевой папке
+        </div>
+
+    </div>
+
+</div>
+
+<div class="top-toolbar mb-4">
+
+    <div class="d-flex gap-3 flex-wrap">
+
+        <select id="yearFilter" class="form-control">
+
+            <option value="">
+                Все годы
+            </option>
+
+            {% for year in years %}
+
+            <option value="{{ year }}">
+                {{ year }}
+            </option>
+
+            {% endfor %}
+
+        </select>
+
     </div>
 
 </div>
@@ -53,7 +81,7 @@
 
                 <th>Исполнители</th>
 
-                <th>Действия</th>
+                <th>Файл</th>
 
             </tr>
 
@@ -65,24 +93,34 @@
 
             <tr>
 
-                <td>
+                <td data-order="{{ p.test_date.isoformat() }}">
+
                     {{ p.test_date.strftime('%d.%m.%Y') }}
+
                 </td>
 
                 <td>
+
                     {{ p.protocol_number }}
+
                 </td>
 
                 <td>
+
                     {{ p.protocol_name }}
+
                 </td>
 
                 <td>
+
                     {{ p.object_name }}
+
                 </td>
 
                 <td>
+
                     {{ p.engineers }}
+
                 </td>
 
                 <td>
@@ -91,7 +129,9 @@
                             class="btn btn-industrial btn-sm"
                             onclick="openFile({{ p.id }})">
 
-                        <i class="fa-solid fa-folder-open"></i>
+                        <i class="fa-solid fa-folder-open me-1"></i>
+
+                        Открыть
 
                     </button>
 
@@ -113,15 +153,33 @@
 
 $(function () {
 
-    $('#protocolsTable').DataTable({
+    const table = $('#protocolsTable').DataTable({
 
         pageLength: 50,
 
         order: [[0, 'desc']],
 
+        responsive: true,
+
         language: {
 
             url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/ru.json'
+
+        }
+
+    });
+
+    $('#yearFilter').on('change', function () {
+
+        const year = $(this).val();
+
+        if (year) {
+
+            table.column(0).search(year).draw();
+
+        } else {
+
+            table.column(0).search('').draw();
 
         }
 
