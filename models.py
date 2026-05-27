@@ -17,5 +17,6 @@ class Protocol(db.Model):
     engineers = db.Column(db.String(500))
 
     file_path = db.Column(db.String(2000), unique=True)
+    last_modified = db.Column(db.DateTime)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
