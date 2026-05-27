@@ -1,80 +1,141 @@
 {% extends 'base.html' %}
 
 {% block content %}
+
 <h1 class="page-title">
-    <i class="fa-solid fa-file-circle-check me-2"></i> Реестр протоколов
+
+    <i class="fa-solid fa-file-circle-check me-2"></i>
+
+    Реестр протоколов
+
 </h1>
 
-<div class="top-toolbar mb-4">
-    <form class="d-flex gap-2 flex-wrap" method="GET">
-        <input type="text" name="search" class="form-control" placeholder="Поиск" value="{{ search }}">
+<div class="kpi-grid">
 
-        <select id="objectFilter" name="object_filter" class="form-select">
-            <option value="">Все объекты</option>
-            <option value="Б1" {% if object_filter == 'Б1' %}selected{% endif %}>Б1</option>
-            <option value="Б2" {% if object_filter == 'Б2' %}selected{% endif %}>Б2</option>
-            <option value="Б3" {% if object_filter == 'Б3' %}selected{% endif %}>Б3</option>
-            <option value="Б4" {% if object_filter == 'Б4' %}selected{% endif %}>Б4</option>
-            <option value="С1" {% if object_filter == 'С1' %}selected{% endif %}>С1</option>
-            <option value="С2" {% if object_filter == 'С2' %}selected{% endif %}>С2</option>
-            <option value="С3" {% if object_filter == 'С3' %}selected{% endif %}>С3</option>
-        </select>
+    <div class="kpi-card">
 
-        <select id="typeFilter" name="type_filter" class="form-select">
-            <option value="">Все испытания</option>
-            <option value="Автоматические выключатели" {% if type_filter == 'Автоматические выключатели' %}selected{% endif %}>Автоматические выключатели</option>
-            <option value="Сопротивление изоляции" {% if type_filter == 'Сопротивление изоляции' %}selected{% endif %}>Сопротивление изоляции</option>
-            <option value="Высоковольтные испытания" {% if type_filter == 'Высоковольтные испытания' %}selected{% endif %}>Высоковольтные испытания</option>
-        </select>
+        <div class="kpi-title">
+            Всего протоколов
+        </div>
 
-        <select name="year" class="form-control">
-            <option value="">Все годы</option>
-            <option value="26" {% if year == '26' %}selected{% endif %}>2026</option>
-            <option value="25" {% if year == '25' %}selected{% endif %}>2025</option>
-            <option value="24" {% if year == '24' %}selected{% endif %}>2024</option>
-        </select>
+        <div class="kpi-value">
+            {{ protocols|length }}
+        </div>
 
-        <button class="btn btn-industrial"><i class="fa-solid fa-magnifying-glass me-2"></i>Найти</button>
-    </form>
+    </div>
+
 </div>
 
 <div class="card glass-card border-0">
-    <div class="card-header bg-transparent">Перечень протоколов</div>
-    <div class="card-body table-responsive table-wrapper">
-        <table id="protocolsTable" class="table table-hover align-middle">
-            <thead>
-                <tr>
-                    <th>Номер</th>
-                    <th>Объект</th>
-                    <th>Тип испытаний</th>
-                    <th>Название</th>
-                    <th>Дата изменения</th>
-                </tr>
-            </thead>
-            <tbody>
-            {% for protocol in protocols %}
-                <tr style="cursor:pointer" onclick="window.location='/open/{{ protocol.id }}'">
-                    <td>{{ protocol.protocol_number }}</td>
-                    <td>{{ protocol.object_name or protocol.object_code }}</td>
-                    <td><span class="badge {% if protocol.test_type == 'Высоковольтные испытания' %}bg-danger{% elif protocol.test_type == 'Автоматические выключатели' %}bg-primary{% elif protocol.test_type == 'Сопротивление изоляции' %}bg-success{% else %}bg-secondary{% endif %}">{{ protocol.test_type }}</span></td>
-                    <td>{{ protocol.protocol_title or protocol.protocol_name }}</td>
-                    <td>{{ protocol.modified_date or '—' }}</td>
-                </tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endblock %}
 
-{% block scripts %}
+    <div class="card-header">
+
+        Журнал протоколов
+
+    </div>
+
+    <div class="card-body table-responsive table-wrapper">
+
+        <table id="protocolsTable"
+               class="table table-hover align-middle">
+
+            <thead>
+
+            <tr>
+
+                <th>Дата</th>
+
+                <th>№</th>
+
+                <th>Название</th>
+
+                <th>Объект</th>
+
+                <th>Исполнители</th>
+
+                <th>Действия</th>
+
+            </tr>
+
+            </thead>
+
+            <tbody>
+
+            {% for p in protocols %}
+
+            <tr>
+
+                <td>
+                    {{ p.test_date.strftime('%d.%m.%Y') }}
+                </td>
+
+                <td>
+                    {{ p.protocol_number }}
+                </td>
+
+                <td>
+                    {{ p.protocol_name }}
+                </td>
+
+                <td>
+                    {{ p.object_name }}
+                </td>
+
+                <td>
+                    {{ p.engineers }}
+                </td>
+
+                <td>
+
+                    <button
+                            class="btn btn-industrial btn-sm"
+                            onclick="openFile({{ p.id }})">
+
+                        <i class="fa-solid fa-folder-open"></i>
+
+                    </button>
+
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
 <script>
+
 $(function () {
+
     $('#protocolsTable').DataTable({
-        pageLength: 25,
-        order: [[4, 'desc']],
-        language: { url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/ru.json' }
+
+        pageLength: 50,
+
+        order: [[0, 'desc']],
+
+        language: {
+
+            url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/ru.json'
+
+        }
+
     });
+
 });
+
+
+function openFile(id){
+
+    fetch('/open/' + id)
+
+}
+
 </script>
+
 {% endblock %}
