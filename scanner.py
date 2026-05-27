@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import uuid
 
 from datetime import datetime
 
@@ -50,31 +51,26 @@ def is_protocol(filename):
 
 
 def read_word_file(path):
-
-    word = None
-    com_initialized = False
-
     try:
 
         # DOCX
         if path.lower().endswith(".docx"):
-
-            doc = Document(path)
-
-            text = [p.text for p in doc.paragraphs]
-
-            for table in doc.tables:
-
-                for row in table.rows:
-
-                    for cell in row.cells:
-                        text.append(cell.text)
-
-            return "\n".join(text)
+            return extract_text_from_docx(path)
 
         # DOC
         elif path.lower().endswith(".doc"):
-            return read_doc_file(path)
+            temp_docx = convert_doc_to_docx(path)
+
+            if not temp_docx:
+                return ""
+
+            try:
+                return extract_text_from_docx(temp_docx)
+            finally:
+                try:
+                    os.remove(temp_docx)
+                except Exception:
+                    pass
 
     except Exception as e:
 
@@ -82,22 +78,33 @@ def read_word_file(path):
 
         return ""
 
-    finally:
-
-        if word:
-            word.Quit()
-
-        if com_initialized:
-            pythoncom.CoUninitialize()
-
     return ""
 
 
-def read_doc_file(path):
+def extract_text_from_docx(path):
+    doc = Document(path)
+    text = [p.text for p in doc.paragraphs]
+
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                text.append(cell.text)
+
+    return clean_text("\n".join(text))
+
+
+def clean_text(text):
+    text = text.replace("\x07", " ")
+    text = re.sub(r"[\x00-\x1f]", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+def convert_doc_to_docx(path):
 
     if len(path) > 240:
         print(f"Слишком длинный путь: {path}")
-        return ""
+        return None
 
     word = None
     doc = None
@@ -122,15 +129,23 @@ def read_doc_file(path):
             NoEncodingDialog=True
         )
 
-        text = doc.Content.Text
+        temp_docx = os.path.join(
+            tempfile.gettempdir(),
+            f"{uuid.uuid4()}.docx"
+        )
 
-        return text
+        doc.SaveAs(
+            temp_docx,
+            FileFormat=16
+        )
+
+        return temp_docx
 
     except Exception as e:
 
-        print(f"Ошибка DOC {path}: {e}")
+        print(f"Ошибка конвертации DOC: {path}: {e}")
 
-        return ""
+        return None
 
     finally:
 
@@ -147,23 +162,6 @@ def read_doc_file(path):
             pass
 
         pythoncom.CoUninitialize()
-
-
-def convert_doc_to_docx(path):
-
-    word = win32com.client.Dispatch("Word.Application")
-
-    doc = word.Documents.Open(path)
-
-    new_path = path + "x"
-
-    doc.SaveAs(new_path, FileFormat=16)
-
-    doc.Close()
-
-    word.Quit()
-
-    return new_path
 
 
 def extract_protocol_data(path):
@@ -257,6 +255,13 @@ def save_protocol(data):
     ).first()
 
     if existing:
+        existing.protocol_number = data["protocol_number"]
+        existing.protocol_name = data["protocol_name"]
+        existing.object_name = data["object_name"]
+        existing.test_date = data["test_date"]
+        existing.engineers = data["engineers"]
+        existing.last_modified = data["last_modified"]
+        db.session.commit()
         return
 
     protocol = Protocol(**data)
@@ -300,9 +305,28 @@ def scan_files(app):
 
                     path = os.path.join(root, file)
 
+                    if len(path) > 240:
+                        continue
+
+                    last_modified = datetime.utcfromtimestamp(
+                        os.path.getmtime(path)
+                    )
+
+                    existing = Protocol.query.filter_by(
+                        file_path=path
+                    ).first()
+
+                    if (
+                        existing
+                        and existing.last_modified
+                        and existing.last_modified >= last_modified
+                    ):
+                        continue
+
                     data = extract_protocol_data(path)
 
                     if data:
+                        data["last_modified"] = last_modified
                         save_protocol(data)
 
                 except Exception as e:
