@@ -104,10 +104,31 @@ def extract_protocol_data(path):
         re.IGNORECASE
     )
 
-    engineers = re.findall(
-        r"/([А-Яа-яЁё\-]+\s?[А-Я]\.[А-Я]\.)/",
-        text
-    )
+    engineers = []
+
+    try:
+
+        # участок между "Испытания произвели" и "Руководитель"
+        engineers_block = re.search(
+            r"Испытания произвели:(.*?)Руководитель:",
+            text,
+            re.IGNORECASE | re.DOTALL
+        )
+
+        if engineers_block:
+
+            block = engineers_block.group(1)
+
+            found_engineers = re.findall(
+                r"/\s*([А-ЯЁ][а-яё\-]+?\s+[А-Я]\.[А-Я]\.)\s*/",
+                block
+            )
+
+            engineers = sorted(set(found_engineers))
+
+    except Exception as e:
+
+        print("Ошибка поиска инженеров:", e)
 
     object_name = object_match.group(1).strip() if object_match else ""
 
@@ -126,7 +147,7 @@ def extract_protocol_data(path):
     if test_date.year < 2022:
         return None
 
-    engineers = ", ".join(sorted(set(engineers)))
+    engineers = ", ".join(engineers)
 
     return {
         "protocol_number": protocol_number,
