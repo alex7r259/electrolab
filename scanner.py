@@ -170,11 +170,14 @@ def convert_doc_to_docx(path):
 
 def extract_protocol_data(path):
 
+    print(f"\nИзвлечение данных: {path}")
     text = read_word_file(path)
 
     if not text:
+        print("Текст документа пуст")
         return None
 
+    print("Документ прочитан")
     filename = os.path.basename(path)
 
     protocol_name = filename.replace(".docx", "").replace(".doc", "")
@@ -184,19 +187,30 @@ def extract_protocol_data(path):
         text,
         re.IGNORECASE | re.DOTALL
     )
-
+    print("Поиск даты...")
+        
     date_match = re.search(
-        r"Дата проведения испытаний:\s*(\d{2}\.\d{2}\.\d{4})",
+        r"Дата проведения(?: испытаний)?\s*[:\-]?\s*(\d{1,2}\.\d{1,2}\.\s*\d{4})",
         text,
         re.IGNORECASE
     )
+    
+    if not date_match:
+        print("Дата НЕ найдена")
+    else:
+        print(f"Дата найдена: {date_match.group(1)}")
 
     protocol_match = re.search(
         r"Протокол\s*№\s*([A-Za-zА-Яа-я0-9\-\/]+)",
         text,
         re.IGNORECASE
     )
-
+    
+    if not protocol_match:
+        print("Номер протокола НЕ найден")
+    else:
+        print(f"Номер найден: {protocol_match.group(1)}")
+        
     engineers = []
 
     try:
@@ -234,16 +248,18 @@ def extract_protocol_data(path):
             protocol_number = protocol_number[:50]
 
     try:
-
+        
+        date_str = re.sub(r"\s+", "", date_match.group(1))
+        
         test_date = datetime.strptime(
-            date_match.group(1),
+            date_str,
             "%d.%m.%Y"
         ).date()
 
     except:
         return None
 
-    if test_date.year < 2022:
+    if test_date.year < 2000:
         return None
 
     engineers = ", ".join(engineers)
@@ -307,17 +323,21 @@ def scan_files(app):
                         filename_lower.endswith(".docx")
                         or filename_lower.endswith(".doc")
                     ):
+                        print("Пропуск: неверное расширение")
                         continue
 
                     ext = os.path.splitext(file)[1].lower()
 
                     if ext not in VALID_EXTENSIONS:
+                        print("Пропуск: расширение не разрешено")
                         continue
 
                     path = os.path.join(root, file)
+                    print(f"Путь: {path}")
                     scanned_paths.add(path)
 
                     if len(path) > 240:
+                        print("Пропуск: слишком длинный путь")
                         continue
 
                     last_modified = datetime.utcfromtimestamp(
@@ -333,15 +353,21 @@ def scan_files(app):
                         and existing.last_modified
                         and existing.last_modified >= last_modified
                     ):
+                        print("Пропуск: файл не изменился")
                         continue
 
+                    print("Чтение документа...")
                     data = extract_protocol_data(path)
 
-                    if data:
+                    if data: 
+                        print("Успешно извлечены данные:")
                         data["last_modified"] = last_modified
                         save_protocol(data)
+                    else:
+                        print("Не удалось извлечь данные")
 
                 except Exception as e:
+                    print(f"Ошибка обработки файла {file}:")
                     print(e)
 
         try:
