@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block title %}Карточка СИ{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-4">
+    <h1 class="page-title mb-0">
+        <i class="fa-solid fa-id-card me-2"></i>{{ instrument.device_name }}
+    </h1>
+    <a class="btn btn-industrial" href="{{ url_for('instruments') }}">
+        <i class="fa-solid fa-arrow-left me-2"></i>К реестру СИ
+    </a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card glass-card border-0 h-100">
+            <div class="card-header">Основные сведения</div>
+            <div class="card-body">
+                <div class="info-grid">
+                    <div class="info-card"><div class="info-label">Заводской номер</div><div class="info-value">{{ instrument.serial_number or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Виды испытаний</div><div class="info-value">{{ instrument.test_types or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Свидетельство</div><div class="info-value">{{ instrument.certificate_number or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Паспорт</div><div class="info-value">{{ instrument.passport_info or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Дата поверки</div><div class="info-value">{{ instrument.last_verification.strftime('%d.%m.%Y') if instrument.last_verification else '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Действует до</div><div class="info-value">{{ instrument.next_verification.strftime('%d.%m.%Y') if instrument.next_verification else '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Статус</div><div class="info-value">
+                        {% if instrument.written_off %}
+                            <span class="badge-status status-danger"><i class="fa-solid fa-ban"></i>Списан</span>
+                        {% elif instrument.in_verification %}
+                            <span class="badge-status status-warning"><i class="fa-solid fa-screwdriver-wrench"></i>В поверке</span>
+                        {% elif instrument.next_verification and instrument.next_verification < today %}
+                            <span class="badge-status status-danger"><i class="fa-solid fa-circle-xmark"></i>Не действует</span>
+                        {% else %}
+                            <span class="badge-status status-ok"><i class="fa-solid fa-circle-check"></i>Действует</span>
+                        {% endif %}
+                    </div></div>
+                    <div class="info-card"><div class="info-label">Примечание</div><div class="info-value">{{ instrument.note or 'Нет примечаний' }}</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card glass-card border-0 h-100">
+            <div class="card-header">Данные ФГИС</div>
+            <div class="card-body">
+                {% if fgis %}
+                <div class="info-grid">
+                    <div class="info-card"><div class="info-label">Номер типа</div><div class="info-value">{{ fgis.type_number or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Наименование типа</div><div class="info-value">{{ fgis.type_title or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Модификация</div><div class="info-value">{{ fgis.modification or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Год выпуска</div><div class="info-value">{{ fgis.manufacture_year or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Дата поверки</div><div class="info-value">{{ fgis.verification_date or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Действительно до</div><div class="info-value">{{ fgis.valid_date or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Организация</div><div class="info-value">{{ fgis.organization or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Методика</div><div class="info-value">{{ fgis.method or '—' }}</div></div>
+                    <div class="info-card"><div class="info-label">Номер свидетельства</div><div class="info-value">{{ fgis.cert_num or '—' }}</div></div>
+                </div>
+
+                {% if fgis.etalons %}
+                <h5 class="mt-4">Эталоны</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead><tr><th>Наименование</th><th>Модификация</th><th>Номер</th><th>Рег. номер</th></tr></thead>
+                        <tbody>
+                        {% for etalon in fgis.etalons %}
+                        <tr>
+                            <td>{{ etalon.title or '—' }}</td>
+                            <td>{{ etalon.modification or '—' }}</td>
+                            <td>{{ etalon.number or '—' }}</td>
+                            <td>{{ etalon.reg_number or '—' }}</td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="alert alert-secondary mb-0">
+                    Данные ФГИС не найдены или свидетельство не содержит идентификатор вида <code>/12345</code>.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

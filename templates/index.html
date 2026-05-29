@@ -1,209 +1,196 @@
 {% extends 'base.html' %}
 
+{% block title %}Дашборд электролаборатории{% endblock %}
+
 {% block content %}
-
 <h1 class="page-title">
-
-    <i class="fa-solid fa-file-circle-check me-2"></i>
-
-    Реестр протоколов
-
+    <i class="fa-solid fa-chart-line me-2"></i>
+    Дашборд электролаборатории
 </h1>
 
 <div class="kpi-grid">
+    <a class="kpi-card text-decoration-none text-reset" href="{{ url_for('protocols') }}">
+        <div class="kpi-title">Протоколы</div>
+        <div class="kpi-value">{{ protocol_stats.total }}</div>
+        <div class="kpi-sub">Всего найдено в сетевой папке</div>
+    </a>
 
-    <div class="kpi-card">
+    <a class="kpi-card text-decoration-none text-reset" href="{{ url_for('protocols') }}">
+        <div class="kpi-title">За текущий год</div>
+        <div class="kpi-value">{{ protocol_stats.current_year }}</div>
+        <div class="kpi-sub">Протоколов за {{ current_year }} год</div>
+    </a>
 
-        <div class="kpi-title">
-            Всего протоколов
-        </div>
+    <a class="kpi-card text-decoration-none text-reset" href="{{ url_for('instruments') }}">
+        <div class="kpi-title">Средства измерений</div>
+        <div class="kpi-value">{{ instrument_stats.total }}</div>
+        <div class="kpi-sub">Всего в реестре СИ</div>
+    </a>
 
-        <div class="kpi-value">
-            {{ protocols|length }}
-        </div>
-
-        <div class="kpi-sub">
-            Найдено в сетевой папке
-        </div>
-
-    </div>
-
+    <a class="kpi-card text-decoration-none text-reset" href="{{ url_for('instruments') }}">
+        <div class="kpi-title">Действует</div>
+        <div class="kpi-value">{{ instrument_stats.active }}</div>
+        <div class="kpi-sub">Актуальные и не списанные СИ</div>
+    </a>
 </div>
 
-<div class="top-toolbar mb-4">
-
-    <div class="d-flex gap-3 flex-wrap">
-
-        <a href="/print" class="btn btn-industrial">
-            <i class="fa-solid fa-print me-2"></i>
-            Печать журнала
-        </a>
-
-        <select id="yearFilter" class="form-control">
-
-            <option value="">
-                Все годы
-            </option>
-
-            {% for year in years %}
-
-            <option value="{{ year }}">
-                {{ year }}
-            </option>
-
-            {% endfor %}
-
-        </select>
-
+<div class="row g-4 mb-4">
+    <div class="col-lg-8">
+        <div class="card glass-card border-0 h-100">
+            <div class="card-header d-flex justify-content-between align-items-center gap-3 flex-wrap">
+                <span>Сводка по реестрам</span>
+                <div class="d-flex gap-2 flex-wrap">
+                    <a class="btn btn-industrial btn-sm" href="{{ url_for('protocols') }}">
+                        <i class="fa-solid fa-file-circle-check me-1"></i>Все протоколы
+                    </a>
+                    <a class="btn btn-industrial btn-sm" href="{{ url_for('instruments') }}">
+                        <i class="fa-solid fa-microchip me-1"></i>Все СИ
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="info-grid">
+                    <div class="info-card">
+                        <div class="info-label">Последний протокол</div>
+                        <div class="info-value">
+                            {{ protocol_stats.latest_date.strftime('%d.%m.%Y') if protocol_stats.latest_date else '—' }}
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-label">Годы протоколов</div>
+                        <div class="info-value">
+                            {% if years %}
+                                {{ years|join(', ') }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-label">Просрочено СИ</div>
+                        <div class="info-value">
+                            <span class="badge-status status-danger">
+                                <i class="fa-solid fa-triangle-exclamation"></i>{{ instrument_stats.expired }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-label">Поверка в течение 30 дней</div>
+                        <div class="info-value">
+                            <span class="badge-status status-warning">
+                                <i class="fa-solid fa-clock"></i>{{ instrument_stats.upcoming }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-label">В поверке</div>
+                        <div class="info-value">
+                            <span class="badge-status status-warning">
+                                <i class="fa-solid fa-screwdriver-wrench"></i>{{ instrument_stats.in_verification }}
+                            </span>
+                        </div>
+                    </div>
+                    <div class="info-card">
+                        <div class="info-label">Списано</div>
+                        <div class="info-value">
+                            <span class="badge-status status-danger">
+                                <i class="fa-solid fa-ban"></i>{{ instrument_stats.written_off }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
+    <div class="col-lg-4">
+        <div class="card glass-card border-0 h-100">
+            <div class="card-header">Быстрые действия</div>
+            <div class="card-body d-grid gap-3">
+                <a class="btn btn-industrial" href="{{ url_for('protocols') }}">
+                    <i class="fa-solid fa-table-list me-2"></i>Открыть журнал протоколов
+                </a>
+                <a class="btn btn-industrial" href="{{ url_for('print_protocols') }}">
+                    <i class="fa-solid fa-print me-2"></i>Печать журнала протоколов
+                </a>
+                <a class="btn btn-industrial" href="{{ url_for('instruments') }}">
+                    <i class="fa-solid fa-microchip me-2"></i>Открыть реестр СИ
+                </a>
+                <a class="btn btn-industrial" href="{{ url_for('logs') }}">
+                    <i class="fa-solid fa-clock-rotate-left me-2"></i>Журнал действий
+                </a>
+            </div>
+        </div>
+    </div>
 </div>
 
-<div class="card glass-card border-0">
-
-    <div class="card-header">
-
-        Журнал протоколов
-
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card glass-card border-0 h-100">
+            <div class="card-header">Последние протоколы</div>
+            <div class="card-body table-responsive table-wrapper">
+                <table class="table table-hover align-middle">
+                    <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>№</th>
+                        <th>Название</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for protocol in recent_protocols %}
+                    <tr>
+                        <td>{{ protocol.test_date.strftime('%d.%m.%Y') if protocol.test_date else '—' }}</td>
+                        <td>{{ protocol.protocol_number or '—' }}</td>
+                        <td>{{ protocol.protocol_name or '—' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="3" class="text-center text-secondary">Протоколы пока не найдены</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
-    <div class="card-body table-responsive table-wrapper">
-
-        <table id="protocolsTable"
-               class="table table-hover align-middle">
-
-            <thead>
-
-            <tr>
-
-                <th>Дата</th>
-
-                <th>№</th>
-
-                <th>Название</th>
-
-                <th>Объект</th>
-
-                <th>Исполнители</th>
-
-                <th>Файл</th>
-
-            </tr>
-
-            </thead>
-
-            <tbody>
-
-            {% for p in protocols %}
-
-            <tr>
-
-                <td data-order="{{ p.test_date.isoformat() }}">
-
-                    {{ p.test_date.strftime('%d.%m.%Y') }}
-
-                </td>
-
-                <td>
-
-                    {{ p.protocol_number }}
-
-                </td>
-
-                <td>
-
-                    {{ p.protocol_name }}
-
-                </td>
-
-                <td>
-
-                    {{ p.object_name }}
-
-                </td>
-
-                <td>
-
-                    {{ p.engineers }}
-
-                </td>
-
-                <td>
-
-                    <button
-                            class="btn btn-industrial btn-sm"
-                            onclick="openFile({{ p.id }})">
-
-                        <i class="fa-solid fa-folder-open me-1"></i>
-
-                        Открыть
-
-                    </button>
-
-                </td>
-
-            </tr>
-
-            {% endfor %}
-
-            </tbody>
-
-        </table>
-
+    <div class="col-lg-6">
+        <div class="card glass-card border-0 h-100">
+            <div class="card-header">Контроль поверок</div>
+            <div class="card-body table-responsive table-wrapper">
+                <table class="table table-hover align-middle">
+                    <thead>
+                    <tr>
+                        <th>СИ</th>
+                        <th>Заводской №</th>
+                        <th>Поверка до</th>
+                        <th>Статус</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for instrument in attention_instruments %}
+                    <tr>
+                        <td>{{ instrument.device_name }}</td>
+                        <td>{{ instrument.serial_number or '—' }}</td>
+                        <td>{{ instrument.next_verification.strftime('%d.%m.%Y') if instrument.next_verification else '—' }}</td>
+                        <td>
+                            {% if instrument.next_verification and instrument.next_verification < today %}
+                                <span class="badge-status status-danger">Просрочено</span>
+                            {% else %}
+                                <span class="badge-status status-warning">Скоро поверка</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" class="text-center text-secondary">Нет СИ, требующих внимания</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
-
 </div>
-
-
-{% endblock %}
-
-{% block scripts %}
-
-<script>
-
-$(document).ready(function () {
-
-    const table = $('#protocolsTable').DataTable({
-
-        pageLength: 50,
-
-        order: [[0, 'desc']],
-
-        responsive: true,
-
-        language: {
-
-            url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/ru.json'
-
-        }
-
-    });
-
-    $('#yearFilter').on('change', function () {
-
-        const year = $(this).val();
-
-        if (year) {
-
-            table.column(0).search(year).draw();
-
-        } else {
-
-            table.column(0).search('').draw();
-
-        }
-
-    });
-
-});
-
-
-function openFile(id){
-
-    fetch('/open/' + id)
-
-}
-
-</script>
-
 {% endblock %}

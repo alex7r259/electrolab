@@ -5,9 +5,20 @@ import uuid
 
 from datetime import datetime
 
-import pythoncom
-import win32com.client
+import importlib.util
 import tempfile
+
+HAS_WORD_COM = (
+    importlib.util.find_spec("pythoncom") is not None
+    and importlib.util.find_spec("win32com") is not None
+)
+
+if HAS_WORD_COM:
+    import pythoncom
+    import win32com.client
+else:
+    pythoncom = None
+    win32com = None
 
 from docx import Document
 
@@ -119,6 +130,10 @@ def clean_text(text):
 
 
 def convert_doc_to_docx(path):
+
+    if not HAS_WORD_COM:
+        print("Конвертация DOC недоступна: не установлен pywin32/Word COM")
+        return None
 
     if len(path) > 240:
         print(f"Слишком длинный путь: {path}")
