@@ -16,6 +16,7 @@ from scanner import background_scan
 
 
 app = Flask(__name__)
+app.url_map.strict_slashes = False
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///protocols.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
