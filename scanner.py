@@ -24,6 +24,20 @@ IGNORE_WORDS = [
     "журнал протоколов"
 ]
 
+MONTHS = {
+    "января": "01",
+    "февраля": "02",
+    "марта": "03",
+    "апреля": "04",
+    "мая": "05",
+    "июня": "06",
+    "июля": "07",
+    "августа": "08",
+    "сентября": "09",
+    "октября": "10",
+    "ноября": "11",
+    "декабря": "12",
+}
 
 def is_protocol(filename):
 
@@ -168,6 +182,104 @@ def convert_doc_to_docx(path):
         pythoncom.CoUninitialize()
 
 
+def extract_date(text):
+
+    patterns = [
+
+        # 17.07.2024
+        r"(\d{1,2}\.\d{1,2}\.\s*\d{4})",
+
+        # 2008-12-15
+        r"(\d{4}-\d{2}-\d{2})",
+
+        # 24 июня 2010
+        r"(\d{1,2})\s+([А-Яа-яЁё]+)\s+(\d{4})",
+    ]
+
+    # -----------------------------
+    # dd.mm.yyyy
+    # -----------------------------
+    match = re.search(
+        patterns[0],
+        text,
+        re.IGNORECASE
+    )
+
+    if match:
+
+        try:
+
+            date_str = re.sub(
+                r"\s+",
+                "",
+                match.group(1)
+            )
+
+            return datetime.strptime(
+                date_str,
+                "%d.%m.%Y"
+            ).date()
+
+        except Exception as e:
+
+            print("Ошибка dd.mm.yyyy:", e)
+
+    # -----------------------------
+    # yyyy-mm-dd
+    # -----------------------------
+    match = re.search(
+        patterns[1],
+        text,
+        re.IGNORECASE
+    )
+
+    if match:
+
+        try:
+
+            return datetime.strptime(
+                match.group(1),
+                "%Y-%m-%d"
+            ).date()
+
+        except Exception as e:
+
+            print("Ошибка yyyy-mm-dd:", e)
+
+    # -----------------------------
+    # 24 июня 2010
+    # -----------------------------
+    match = re.search(
+        patterns[2],
+        text,
+        re.IGNORECASE
+    )
+
+    if match:
+
+        try:
+
+            day = match.group(1).zfill(2)
+
+            month_name = match.group(2).lower()
+
+            year = match.group(3)
+
+            month = MONTHS.get(month_name)
+
+            if month:
+
+                return datetime.strptime(
+                    f"{day}.{month}.{year}",
+                    "%d.%m.%Y"
+                ).date()
+
+        except Exception as e:
+
+            print("Ошибка текстовой даты:", e)
+
+    return None
+    
 def extract_protocol_data(path):
 
     print(f"\nИзвлечение данных: {path}")
@@ -189,19 +301,10 @@ def extract_protocol_data(path):
     )
     print("Поиск даты...")
         
-    date_match = re.search(
-        r"Дата проведения(?: испытаний)?\s*[:\-]?\s*(\d{1,2}\.\d{1,2}\.\s*\d{4})",
-        text,
-        re.IGNORECASE
-    )
-    
-    if not date_match:
-        print("Дата НЕ найдена")
-    else:
-        print(f"Дата найдена: {date_match.group(1)}")
-
+    test_date = extract_date(text)
+        
     protocol_match = re.search(
-        r"Протокол\s*№\s*([A-Za-zА-Яа-я0-9\-\/]+)",
+        r"ПРОТОКОЛ\s*(?:№|N|No)?\s*([A-Za-zА-Яа-я0-9\-\/]+)",
         text,
         re.IGNORECASE
     )
@@ -248,13 +351,8 @@ def extract_protocol_data(path):
             protocol_number = protocol_number[:50]
 
     try:
-        
-        date_str = re.sub(r"\s+", "", date_match.group(1))
-        
-        test_date = datetime.strptime(
-            date_str,
-            "%d.%m.%Y"
-        ).date()
+             
+        print(f"Дата: {test_date}")
 
     except:
         return None
