@@ -157,16 +157,92 @@ def update_instrument_dates_from_fgis(instrument: Instrument, fgis: dict | None)
 
 @app.route("/")
 def index():
+    today = date.today()
+    month_ahead = today + timedelta(days=30)
+    current_year = today.year
+
     protocols = Protocol.query.order_by(Protocol.test_date.desc()).all()
+    instruments_list = Instrument.query.all()
 
     years = sorted(
         list({p.test_date.year for p in protocols if p.test_date}),
         reverse=True,
     )
 
+    protocol_stats = {
+        "total": len(protocols),
+        "current_year": sum(
+            1
+            for protocol in protocols
+            if protocol.test_date and protocol.test_date.year == current_year
+        ),
+        "latest_date": next(
+            (protocol.test_date for protocol in protocols if protocol.test_date),
+            None,
+        ),
+    }
+
+    instrument_stats = {
+        "total": len(instruments_list),
+        "active": sum(
+            1
+            for instrument in instruments_list
+            if not instrument.written_off
+            and not instrument.in_verification
+            and instrument.next_verification
+            and instrument.next_verification >= today
+        ),
+        "expired": sum(
+            1
+            for instrument in instruments_list
+            if not instrument.written_off
+            and instrument.next_verification
+            and instrument.next_verification < today
+        ),
+        "upcoming": sum(
+            1
+            for instrument in instruments_list
+            if not instrument.written_off
+            and instrument.next_verification
+            and today <= instrument.next_verification <= month_ahead
+        ),
+        "in_verification": sum(1 for instrument in instruments_list if instrument.in_verification),
+        "written_off": sum(1 for instrument in instruments_list if instrument.written_off),
+    }
+
+    attention_instruments = [
+        instrument
+        for instrument in instruments_list
+        if not instrument.written_off
+        and instrument.next_verification
+        and instrument.next_verification <= month_ahead
+    ]
+    attention_instruments.sort(key=lambda instrument: instrument.next_verification)
+
     return render_template(
         "index.html",
-        protocols=protocols,
+        protocol_stats=protocol_stats,
+        instrument_stats=instrument_stats,
+        recent_protocols=protocols[:5],
+        attention_instruments=attention_instruments[:5],
+        current_year=current_year,
+        years=years,
+        today=today,
+    )
+
+
+@app.route("/protocols")
+def protocols():
+    protocols_list = Protocol.query.order_by(Protocol.test_date.desc()).all()
+
+    years = sorted(
+        list({p.test_date.year for p in protocols_list if p.test_date}),
+        reverse=True,
+    )
+
+    return render_template(
+        "protocols.html",
+        protocols=protocols_list,
         years=years,
     )
 

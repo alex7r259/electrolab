@@ -383,9 +383,10 @@ body{
     <div class="container">
         <a class="navbar-brand fw-bold" href="/">Электролаборатория</a>
         <div class="navbar-nav flex-row gap-2">
-            <a class="nav-link" href="/">Протоколы</a>
-            <a class="nav-link" href="/instruments">Средства измерений</a>
-            <a class="nav-link" href="/logs">Журнал действий</a>
+            <a class="nav-link" href="{{ url_for('index') }}">Дашборд</a>
+            <a class="nav-link" href="{{ url_for('protocols') }}">Протоколы</a>
+            <a class="nav-link" href="{{ url_for('instruments') }}">Средства измерений</a>
+            <a class="nav-link" href="{{ url_for('logs') }}">Журнал действий</a>
         </div>
     </div>
 </nav>
