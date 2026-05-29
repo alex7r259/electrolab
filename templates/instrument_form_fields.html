@@ -1,0 +1,16 @@
+<div class="col-md-6"><input required name="device_name" class="form-control" placeholder="Наименование"></div>
+<div class="col-md-6"><input name="test_types" class="form-control" placeholder="Виды испытаний"></div>
+<div class="col-md-6"><input name="serial_number" class="form-control" placeholder="Заводской №"></div>
+<div class="col-md-6"><input name="certificate_number" class="form-control" placeholder="Свидетельство"></div>
+<div class="col-md-6"><input type="date" name="last_verification" class="form-control"></div>
+<div class="col-md-6"><input type="date" name="next_verification" class="form-control"></div>
+<div class="col-md-6"><input name="passport_info" class="form-control" placeholder="Паспорт"></div>
+<div class="col-md-6"><input name="note" class="form-control" placeholder="Примечание"></div>
+<div class="col-12 form-check d-flex align-items-center ps-5">
+    <input type="checkbox" class="form-check-input me-2" name="in_verification" id="{{ 'edit' if request.endpoint == 'edit_instrument' else 'modal' }}_in_verification">
+    <label class="form-check-label">В поверке</label>
+</div>
+<div class="col-12 form-check d-flex align-items-center ps-5">
+    <input type="checkbox" class="form-check-input me-2" name="written_off" id="{{ 'edit' if request.endpoint == 'edit_instrument' else 'modal' }}_written_off">
+    <label class="form-check-label">Списан</label>
+</div>

@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Редактировать СИ{% endblock %}
+
+{% block content %}
+<h1 class="page-title"><i class="fa-solid fa-pen me-2"></i>Редактировать СИ</h1>
+<div class="card glass-card border-0">
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-6"><input required name="device_name" class="form-control" placeholder="Наименование" value="{{ instrument.device_name }}"></div>
+            <div class="col-md-6"><input name="test_types" class="form-control" placeholder="Виды испытаний" value="{{ instrument.test_types }}"></div>
+            <div class="col-md-6"><input name="serial_number" class="form-control" placeholder="Заводской №" value="{{ instrument.serial_number }}"></div>
+            <div class="col-md-6"><input name="certificate_number" class="form-control" placeholder="Свидетельство" value="{{ instrument.certificate_number }}"></div>
+            <div class="col-md-6"><input type="date" name="last_verification" class="form-control" value="{{ instrument.last_verification.isoformat() if instrument.last_verification else '' }}"></div>
+            <div class="col-md-6"><input type="date" name="next_verification" class="form-control" value="{{ instrument.next_verification.isoformat() if instrument.next_verification else '' }}"></div>
+            <div class="col-md-6"><input name="passport_info" class="form-control" placeholder="Паспорт" value="{{ instrument.passport_info }}"></div>
+            <div class="col-md-6"><input name="note" class="form-control" placeholder="Примечание" value="{{ instrument.note }}"></div>
+            <div class="col-12 form-check d-flex align-items-center ps-5">
+                <input type="checkbox" class="form-check-input me-2" name="in_verification" id="edit_page_in_verification" {% if instrument.in_verification %}checked{% endif %}>
+                <label for="edit_page_in_verification" class="form-check-label">В поверке</label>
+            </div>
+            <div class="col-12 form-check d-flex align-items-center ps-5">
+                <input type="checkbox" class="form-check-input me-2" name="written_off" id="edit_page_written_off" {% if instrument.written_off %}checked{% endif %}>
+                <label for="edit_page_written_off" class="form-check-label">Списан</label>
+            </div>
+            <div class="col-12 d-flex gap-2">
+                <button class="btn btn-primary">Сохранить</button>
+                <a class="btn btn-outline-secondary" href="{{ url_for('instruments') }}">Отмена</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
