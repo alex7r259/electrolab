@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+
+{% block title %}Реестр протоколов{% endblock %}
+
+{% block content %}
+
+<h1 class="page-title">
+
+    <i class="fa-solid fa-file-circle-check me-2"></i>
+
+    Реестр протоколов
+
+</h1>
+
+<div class="kpi-grid">
+
+    <div class="kpi-card">
+
+        <div class="kpi-title">
+            Всего протоколов
+        </div>
+
+        <div class="kpi-value">
+            {{ protocols|length }}
+        </div>
+
+        <div class="kpi-sub">
+            Найдено в сетевой папке
+        </div>
+
+    </div>
+
+</div>
+
+<div class="top-toolbar mb-4">
+
+    <div class="d-flex gap-3 flex-wrap">
+
+        <a href="/print" class="btn btn-industrial">
+            <i class="fa-solid fa-print me-2"></i>
+            Печать журнала
+        </a>
+
+        <select id="yearFilter" class="form-control">
+
+            <option value="">
+                Все годы
+            </option>
+
+            {% for year in years %}
+
+            <option value="{{ year }}">
+                {{ year }}
+            </option>
+
+            {% endfor %}
+
+        </select>
+
+    </div>
+
+</div>
+
+<div class="card glass-card border-0">
+
+    <div class="card-header">
+
+        Журнал протоколов
+
+    </div>
+
+    <div class="card-body table-responsive table-wrapper">
+
+        <table id="protocolsTable"
+               class="table table-hover align-middle">
+
+            <thead>
+
+            <tr>
+
+                <th>Дата</th>
+
+                <th>№</th>
+
+                <th>Название</th>
+
+                <th>Объект</th>
+
+                <th>Исполнители</th>
+
+                <th>Файл</th>
+
+            </tr>
+
+            </thead>
+
+            <tbody>
+
+            {% for p in protocols %}
+
+            <tr>
+
+                <td data-order="{{ p.test_date.isoformat() if p.test_date else '' }}">
+
+                    {{ p.test_date.strftime('%d.%m.%Y') if p.test_date else '—' }}
+
+                </td>
+
+                <td>
+
+                    {{ p.protocol_number }}
+
+                </td>
+
+                <td>
+
+                    {{ p.protocol_name }}
+
+                </td>
+
+                <td>
+
+                    {{ p.object_name }}
+
+                </td>
+
+                <td>
+
+                    {{ p.engineers }}
+
+                </td>
+
+                <td>
+
+                    <button
+                            class="btn btn-industrial btn-sm"
+                            onclick="openFile({{ p.id }})">
+
+                        <i class="fa-solid fa-folder-open me-1"></i>
+
+                        Открыть
+
+                    </button>
+
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+
+{% endblock %}
+
+{% block scripts %}
+
+<script>
+
+$(document).ready(function () {
+
+    const table = $('#protocolsTable').DataTable({
+
+        pageLength: 50,
+
+        order: [[0, 'desc']],
+
+        responsive: true,
+
+        language: {
+
+            url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/ru.json'
+
+        }
+
+    });
+
+    $('#yearFilter').on('change', function () {
+
+        const year = $(this).val();
+
+        if (year) {
+
+            table.column(0).search(year).draw();
+
+        } else {
+
+            table.column(0).search('').draw();
+
+        }
+
+    });
+
+});
+
+
+function openFile(id){
+
+    fetch('/open/' + id)
+
+}
+
+</script>
+
+{% endblock %}

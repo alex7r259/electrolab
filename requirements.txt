@@ -3,3 +3,6 @@ flask_sqlalchemy
 python-docx
 watchdog
 waitress
+requests
+pywin32; platform_system == "Windows"
+python-docx==0.8.11
