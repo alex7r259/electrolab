@@ -112,7 +112,7 @@
                 </td>
                 <td>
                     {% if instrument.written_off %}
-                        <span class="badge-status status-danger"><i class="fa-solid fa-ban"></i>Списан</span>
+                        <span class="badge-status status-danger"><i class="fa-solid fa-ban"></i>Непригоден</span>
                     {% elif instrument.in_verification %}
                         <span class="badge-status status-warning"><i class="fa-solid fa-screwdriver-wrench"></i>В поверке</span>
                     {% elif instrument.next_verification and instrument.next_verification < today %}
@@ -226,7 +226,7 @@ $(function () {
                         <div class="info-label">QR-код</div>
                         <div class="info-value qrcode d-flex justify-content-center"><div id="${qrId}"></div></div>
                         <div class="mt-2 text-center">
-                            <button class="btn btn-sm btn-industrial mt-2" onclick="printSticker('${qrId}', '${button.data('id')}', ${JSON.stringify(button.data('device'))}, ${JSON.stringify(button.data('serial'))})">
+                            <button class="btn btn-sm btn-industrial mt-2" onclick="printSticker('${qrId}', '${button.data('id')}', '${button.data('device')}', '${button.data('serial')}')">
                                 <i class="fa-solid fa-print me-1"></i> Печать QR
                             </button>
                         </div>
@@ -273,10 +273,10 @@ function printSticker(qrId, id, deviceName, serialNumber) {
             @page {size: 50mm 30mm;margin: 0;}
             body {margin: 0;padding: 0;width: 50mm;height: 30mm;font-family: Arial, sans-serif;}
             .label {width: 50mm;height: 30mm;display:flex;align-items:center;justify-content:space-between;padding:2mm;box-sizing:border-box;}
-            .qr,.qr canvas,.qr img {width:24mm !important;height:24mm !important;}
+            .qr,.qr canvas,.qr img {width:20mm !important;height:20mm !important;}
             .info {width:24mm;display:flex;flex-direction:column;justify-content:center;gap:2px;font-size:6px;line-height:1.1;padding-left:5px;}
-            .name {font-weight:bold;font-size:6.5px;max-height:12mm;overflow:hidden;}
-            .serial {font-size:6px;color:#333;}
+            .name {font-weight:bold;font-size:7px;max-height:12mm;overflow:hidden;}
+            .serial {font-size:7px;color:#333;}
         </style></head><body>
             <div class="label"><div class="qr">${qrHtml}</div><div class="info"><div class="name">${deviceName}</div><div class="serial">№ ${serialNumber || '-'}</div><div class="serial">ID: ${id}</div></div></div>
             <script>window.onload=function(){window.print();setTimeout(() => window.close(), 500);};<\/script>

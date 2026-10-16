@@ -58,7 +58,7 @@ def is_protocol(filename):
     if name.startswith("~$"):
         return False
 
-    if "протокол" not in name:
+    if "протокол" not in name and "фазировка" not in name:
         return False
 
     ignore_words = [

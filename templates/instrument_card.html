@@ -26,7 +26,7 @@
                     <div class="info-card"><div class="info-label">Действует до</div><div class="info-value">{{ instrument.next_verification.strftime('%d.%m.%Y') if instrument.next_verification else '—' }}</div></div>
                     <div class="info-card"><div class="info-label">Статус</div><div class="info-value">
                         {% if instrument.written_off %}
-                            <span class="badge-status status-danger"><i class="fa-solid fa-ban"></i>Списан</span>
+                            <span class="badge-status status-danger"><i class="fa-solid fa-ban"></i>Непригоден</span>
                         {% elif instrument.in_verification %}
                             <span class="badge-status status-warning"><i class="fa-solid fa-screwdriver-wrench"></i>В поверке</span>
                         {% elif instrument.next_verification and instrument.next_verification < today %}

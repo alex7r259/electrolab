@@ -384,7 +384,7 @@ def edit_instrument(instrument_id: int):
                 instrument.note,
                 request.form.get("note", "").strip(),
             ),
-            "Списан": (
+            "Непригоден": (
                 instrument.written_off,
                 request.form.get("written_off") == "on",
             ),
@@ -407,7 +407,7 @@ def edit_instrument(instrument_id: int):
         instrument.certificate_number = fields["Свидетельство"][1]
         instrument.passport_info = fields["Паспорт"][1]
         instrument.note = fields["Примечание"][1]
-        instrument.written_off = fields["Списан"][1]
+        instrument.written_off = fields["Непригоден"][1]
         instrument.in_verification = fields["В поверке"][1]
         db.session.commit()
 
