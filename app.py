@@ -3,15 +3,18 @@ import re
 import os
 import subprocess
 import threading
+import uuid
+from pathlib import Path
+from werkzeug.utils import secure_filename
 
 from datetime import date, datetime, timedelta
 
 import requests
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
 from sqlalchemy import or_
 from waitress import serve
 
-from models import ActionLog, Instrument, Protocol, db
+from models import ActionLog, Instrument, InstrumentDocument, Protocol, db
 from scanner import background_scan
 
 
@@ -20,6 +23,9 @@ app.url_map.strict_slashes = False
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///protocols.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
+app.config["INSTRUMENT_UPLOAD_FOLDER"] = os.environ.get("ELECTROLAB_UPLOAD_FOLDER", os.path.join(app.root_path, "uploads", "instruments"))
+ALLOWED_DOCUMENT_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png"}
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "connect_args": {
         "check_same_thread": False
@@ -468,6 +474,39 @@ def delete_instrument(instrument_id: int):
     db.session.delete(instrument)
     db.session.commit()
     return redirect(url_for("instruments"))
+
+
+@app.route("/instrument/<int:instrument_id>/documents/upload", methods=["POST"])
+def upload_instrument_documents(instrument_id):
+    instrument = Instrument.query.get_or_404(instrument_id)
+    saved_count = 0
+    target_dir = os.path.join(os.path.abspath(app.config["INSTRUMENT_UPLOAD_FOLDER"]), str(instrument.id))
+    os.makedirs(target_dir, exist_ok=True)
+    for uploaded in request.files.getlist("documents"):
+        if not uploaded or not uploaded.filename:
+            continue
+        original_name = secure_filename(uploaded.filename)
+        extension = Path(original_name).suffix.lower()
+        if not original_name or extension not in ALLOWED_DOCUMENT_EXTENSIONS:
+            continue
+        stored_name = f"{uuid.uuid4().hex}{extension}"
+        uploaded.save(os.path.join(target_dir, stored_name))
+        db.session.add(InstrumentDocument(instrument_id=instrument.id, original_name=original_name, stored_name=stored_name))
+        saved_count += 1
+    if saved_count:
+        db.session.commit()
+        add_log("DOCUMENT_UPLOAD", instrument.device_name, f"Загружено документов: {saved_count}")
+    else:
+        db.session.rollback()
+    return redirect(url_for("instrument_card", instrument_id=instrument.id))
+
+
+@app.route("/instrument/<int:instrument_id>/documents/<int:document_id>")
+def download_instrument_document(instrument_id, document_id):
+    instrument = Instrument.query.get_or_404(instrument_id)
+    document = InstrumentDocument.query.filter_by(id=document_id, instrument_id=instrument.id).first_or_404()
+    target_dir = os.path.abspath(os.path.join(app.config["INSTRUMENT_UPLOAD_FOLDER"], str(instrument.id)))
+    return send_from_directory(target_dir, document.stored_name, as_attachment=True, download_name=document.original_name)
 
 
 @app.route("/logs")
