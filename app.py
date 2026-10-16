@@ -526,6 +526,7 @@ def logs():
 BACKUP_FOLDER = r"\\Admin\рабочая\ЛАБОРАТОРИЯ\backup"
 BACKUP_HOUR = 2
 BACKUP_RETENTION_DAYS = 30
+BACKUP_RETRY_MINUTES = 15
 
 
 def create_backup() -> str:
@@ -587,7 +588,9 @@ def create_backup() -> str:
 
 
 def daily_backup_loop() -> None:
-    """Запускает резервное копирование ежедневно в 02:00 по времени компьютера."""
+    """Запускает резервное копирование ежедневно в 02:00 и повторяет попытки при сбоях."""
+    wait_event = threading.Event()
+
     while True:
         now = datetime.now()
         next_run = now.replace(hour=BACKUP_HOUR, minute=0, second=0, microsecond=0)
@@ -595,13 +598,22 @@ def daily_backup_loop() -> None:
             next_run += timedelta(days=1)
         delay = max(1, (next_run - now).total_seconds())
         print(f"[BACKUP] Следующая резервная копия: {next_run:%Y-%m-%d %H:%M:%S}")
-        if threading.Event().wait(delay):
-            continue
-        try:
-            create_backup()
-        except Exception as error:
-            # Ошибка не останавливает планировщик: следующая попытка будет завтра.
-            print(f"[BACKUP] Ошибка резервного копирования: {error}")
+        wait_event.wait(delay)
+
+        # Ошибка резервирования, например недоступная сетевая папка, не должна
+        # завершать поток и никак не влияет на работу веб-приложения.
+        while True:
+            try:
+                create_backup()
+                break
+            except Exception as error:
+                retry_seconds = BACKUP_RETRY_MINUTES * 60
+                print(
+                    f"[BACKUP] Не удалось создать резервную копию "
+                    f"(сетевая папка может быть недоступна): {error}. "
+                    f"Повторная попытка через {BACKUP_RETRY_MINUTES} мин."
+                )
+                wait_event.wait(retry_seconds)
 
 
 if __name__ == "__main__":
