@@ -550,18 +550,25 @@ def create_backup() -> str:
             with sqlite3.connect(snapshot_path) as backup_db:
                 source_db.backup(backup_db)
 
-        # Сначала формируем архив во временном файле, затем атомарно переносим
-        # его в сетевую папку, чтобы неполный архив не выглядел готовым бэкапом.
-        temp_archive = os.path.join(temp_dir, os.path.basename(archive_path))
-        with zipfile.ZipFile(temp_archive, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            archive.write(snapshot_path, arcname="protocols.db")
-            if os.path.isdir(upload_folder):
-                for root, _, files in os.walk(upload_folder):
-                    for filename in files:
-                        full_path = os.path.join(root, filename)
-                        relative_path = os.path.relpath(full_path, upload_folder)
-                        archive.write(full_path, arcname=os.path.join("instrument_documents", relative_path))
-        os.replace(temp_archive, archive_path)
+        # Временный архив создаём на том же сетевом ресурсе, чтобы os.replace
+        # мог атомарно переименовать его после полной записи.
+        temp_archive = archive_path + ".tmp"
+        try:
+            with zipfile.ZipFile(temp_archive, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.write(snapshot_path, arcname="protocols.db")
+                if os.path.isdir(upload_folder):
+                    for root, _, files in os.walk(upload_folder):
+                        for filename in files:
+                            full_path = os.path.join(root, filename)
+                            relative_path = os.path.relpath(full_path, upload_folder)
+                            archive.write(full_path, arcname=os.path.join("instrument_documents", relative_path))
+            os.replace(temp_archive, archive_path)
+        finally:
+            if os.path.exists(temp_archive):
+                try:
+                    os.remove(temp_archive)
+                except OSError:
+                    pass
 
     # Храним последние 30 дней; старые архивы удаляются только после успешного бэкапа.
     cutoff = datetime.now().timestamp() - BACKUP_RETENTION_DAYS * 86400
