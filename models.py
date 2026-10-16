@@ -56,3 +56,13 @@ class ActionLog(db.Model):
     ip_address = db.Column(db.String(255), default="unknown")
 
     created_at = db.Column(db.DateTime, default=datetime.now)
+
+
+class InstrumentDocument(db.Model):
+    __tablename__ = "instrument_documents"
+    id = db.Column(db.Integer, primary_key=True)
+    instrument_id = db.Column(db.Integer, db.ForeignKey("instrument.id"), nullable=False, index=True)
+    original_name = db.Column(db.String(255), nullable=False)
+    stored_name = db.Column(db.String(255), nullable=False, unique=True)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    instrument = db.relationship("Instrument", backref=db.backref("documents", lazy=True, cascade="all, delete-orphan"))
