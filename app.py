@@ -5,7 +5,6 @@ import subprocess
 import threading
 import uuid
 from pathlib import Path
-from werkzeug.utils import secure_filename
 
 from datetime import date, datetime, timedelta
 
@@ -485,7 +484,8 @@ def upload_instrument_documents(instrument_id):
     for uploaded in request.files.getlist("documents"):
         if not uploaded or not uploaded.filename:
             continue
-        original_name = secure_filename(uploaded.filename)
+        original_name = os.path.basename(uploaded.filename.replace('\\\\', '/')).strip()
+        original_name = original_name[:255]
         extension = Path(original_name).suffix.lower()
         if not original_name or extension not in ALLOWED_DOCUMENT_EXTENSIONS:
             continue
