@@ -4,6 +4,9 @@ import os
 import subprocess
 import threading
 import uuid
+import sqlite3
+import tempfile
+import zipfile
 from pathlib import Path
 
 from datetime import date, datetime, timedelta
@@ -519,7 +522,85 @@ def logs():
     )
 
 
+# Ежедневная резервная копия базы и прикреплённых документов.
+BACKUP_FOLDER = r"\\Admin\рабочая\ЛАБОРАТОРИЯ\backup"
+BACKUP_HOUR = 2
+BACKUP_RETENTION_DAYS = 30
+
+
+def create_backup() -> str:
+    """Создаёт согласованную SQLite-копию и архив документов на сетевом ресурсе."""
+    os.makedirs(BACKUP_FOLDER, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    archive_path = os.path.join(BACKUP_FOLDER, f"electrolab_{timestamp}.zip")
+    upload_folder = os.path.abspath(app.config["INSTRUMENT_UPLOAD_FOLDER"])
+
+    database_path = db.engine.url.database
+    if not database_path:
+        raise RuntimeError("Не удалось определить путь к базе данных SQLite.")
+    if not os.path.isabs(database_path):
+        database_path = os.path.abspath(os.path.join(app.instance_path, database_path))
+    if not os.path.isfile(database_path):
+        raise FileNotFoundError(f"Файл базы данных не найден: {database_path}")
+
+    # SQLite backup API корректно копирует БД даже при работающем приложении.
+    with tempfile.TemporaryDirectory(prefix="electrolab_backup_") as temp_dir:
+        snapshot_path = os.path.join(temp_dir, "protocols.db")
+        with sqlite3.connect(database_path, timeout=30) as source_db:
+            with sqlite3.connect(snapshot_path) as backup_db:
+                source_db.backup(backup_db)
+
+        # Сначала формируем архив во временном файле, затем атомарно переносим
+        # его в сетевую папку, чтобы неполный архив не выглядел готовым бэкапом.
+        temp_archive = os.path.join(temp_dir, os.path.basename(archive_path))
+        with zipfile.ZipFile(temp_archive, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.write(snapshot_path, arcname="protocols.db")
+            if os.path.isdir(upload_folder):
+                for root, _, files in os.walk(upload_folder):
+                    for filename in files:
+                        full_path = os.path.join(root, filename)
+                        relative_path = os.path.relpath(full_path, upload_folder)
+                        archive.write(full_path, arcname=os.path.join("instrument_documents", relative_path))
+        os.replace(temp_archive, archive_path)
+
+    # Храним последние 30 дней; старые архивы удаляются только после успешного бэкапа.
+    cutoff = datetime.now().timestamp() - BACKUP_RETENTION_DAYS * 86400
+    for filename in os.listdir(BACKUP_FOLDER):
+        if not filename.startswith("electrolab_") or not filename.endswith(".zip"):
+            continue
+        path = os.path.join(BACKUP_FOLDER, filename)
+        try:
+            if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                os.remove(path)
+        except OSError as error:
+            print(f"[BACKUP] Не удалось удалить старый архив {path}: {error}")
+
+    print(f"[BACKUP] Резервная копия создана: {archive_path}")
+    return archive_path
+
+
+def daily_backup_loop() -> None:
+    """Запускает резервное копирование ежедневно в 02:00 по времени компьютера."""
+    while True:
+        now = datetime.now()
+        next_run = now.replace(hour=BACKUP_HOUR, minute=0, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        delay = max(1, (next_run - now).total_seconds())
+        print(f"[BACKUP] Следующая резервная копия: {next_run:%Y-%m-%d %H:%M:%S}")
+        if threading.Event().wait(delay):
+            continue
+        try:
+            create_backup()
+        except Exception as error:
+            # Ошибка не останавливает планировщик: следующая попытка будет завтра.
+            print(f"[BACKUP] Ошибка резервного копирования: {error}")
+
+
 if __name__ == "__main__":
+    backup_thread = threading.Thread(target=daily_backup_loop, daemon=True, name="daily-backup")
+    backup_thread.start()
+
     if os.environ.get("ELECTROLAB_DISABLE_SCAN") != "1":
         scan_thread = threading.Thread(
             target=background_scan,
