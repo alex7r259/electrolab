@@ -84,5 +84,9 @@
             </div>
         </div>
     </div>
+<div class="col-12"><div class="card glass-card border-0"><div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"><span><i class="fa-solid fa-paperclip me-2"></i>Документы прибора</span><span class="text-secondary small">PDF, Word, Excel, JPG, PNG · до 25 МБ на запрос</span></div><div class="card-body">
+<form method="post" enctype="multipart/form-data" action="{{ url_for('upload_instrument_documents', instrument_id=instrument.id) }}" class="d-flex gap-2 flex-wrap mb-3"><input type="file" class="form-control" name="documents" multiple required accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png" style="max-width:520px"><button class="btn btn-industrial" type="submit"><i class="fa-solid fa-upload me-2"></i>Загрузить файлы</button></form>
+{% if instrument.documents %}<div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Файл</th><th>Добавлен</th><th>Действие</th></tr></thead><tbody>{% for document in instrument.documents|sort(attribute='uploaded_at', reverse=true) %}<tr><td><i class="fa-regular fa-file-lines me-2 text-secondary"></i>{{ document.original_name }}</td><td>{{ document.uploaded_at.strftime('%d.%m.%Y %H:%M') if document.uploaded_at else '—' }}</td><td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('download_instrument_document', instrument_id=instrument.id, document_id=document.id) }}"><i class="fa-solid fa-download me-1"></i>Скачать</a></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="text-secondary">К этому прибору пока не прикреплены документы.</div>{% endif %}
+</div></div></div>
 </div>
 {% endblock %}

@@ -55,12 +55,13 @@
 </div>
 
 <div class="card glass-card border-0">
-    <div class="card-header">Перечень СИ</div>
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"><span>Перечень СИ</span><div class="d-flex gap-2 flex-wrap"><button class="btn btn-sm btn-outline-secondary" type="button" id="selectAllVisible">Выбрать все найденные</button><button class="btn btn-sm btn-outline-secondary" type="button" id="clearInstrumentSelection">Снять выделение</button><button class="btn btn-sm btn-industrial" type="button" id="printSelectedInstruments"><i class="fa-solid fa-print me-1"></i>Печать наклеек (<span id="selectedInstrumentCount">0</span>)</button></div></div>
     <div class="card-body table-responsive table-wrapper">
         <table id="instrumentsTable" class="table table-hover align-middle">
             <thead>
             <tr>
                 <th style="display:none">Списан</th>
+                <th style="width:42px"><input type="checkbox" id="selectAllInstruments" aria-label="Выбрать все"></th>
                 <th style="width:60px"></th>
                 <th style="width:34%">Прибор</th>
                 <th style="width:20%">Испытания</th>
@@ -73,6 +74,7 @@
             {% for instrument in instruments %}
             <tr class="main-row{% if instrument.written_off %} written-row{% endif %}{% if instrument.next_verification and instrument.next_verification < today %} expired-row{% endif %}">
                 <td style="display:none">{{ 1 if instrument.written_off else 0 }}</td>
+                <td><input type="checkbox" class="instrument-select" value="{{ instrument.id }}" data-device="{{ instrument.device_name|e }}" data-serial="{{ instrument.serial_number|e }}" aria-label="Выбрать прибор"></td>
                 <td>
                     <button class="expand-btn"
                             data-id="{{ instrument.id }}"
@@ -192,12 +194,23 @@
 $(function () {
     const table = $('#instrumentsTable').DataTable({
         pageLength: 50,
-        order: [[0, 'asc'], [4, 'asc']],
+        order: [[0, 'asc'], [5, 'asc']],
         columnDefs: [
             {targets: 0, visible: false, searchable: false},
-            {orderable: false, targets: [1, 5, 6]}
+            {orderable: false, targets: [1, 2, 6, 7]}
         ],
         language: {url: 'https://cdn.datatables.net/plug-ins/1.13.8/i18n/ru.json'}
+    });
+    function updateSelectedCount() { $('#selectedInstrumentCount').text($('#instrumentsTable .instrument-select:checked').length); }
+    $('#instrumentsTable tbody').on('change', '.instrument-select', updateSelectedCount);
+    $('#selectAllVisible').on('click', function () { table.rows({search:'applied'}).nodes().to$().find('.instrument-select').prop('checked', true); $('#selectAllInstruments').prop('checked', true); updateSelectedCount(); });
+    $('#selectAllInstruments').on('change', function () { table.rows({search:'applied'}).nodes().to$().find('.instrument-select').prop('checked', this.checked); updateSelectedCount(); });
+    $('#clearInstrumentSelection').on('click', function () { $('#instrumentsTable .instrument-select').prop('checked', false); $('#selectAllInstruments').prop('checked', false); updateSelectedCount(); });
+    $('#printSelectedInstruments').on('click', async function () {
+        const selected = [];
+        $('#instrumentsTable .instrument-select:checked').each(function () { selected.push({id:this.value,name:this.dataset.device||'',serial:this.dataset.serial||''}); });
+        if (!selected.length) { alert('Сначала выберите хотя бы один прибор.'); return; }
+        await printMultipleStickers(selected);
     });
 
     $('#instrumentsTable tbody').on('click', '.expand-btn', function () {
@@ -262,6 +275,15 @@ $(function () {
         $('#editInstrumentForm [name="written_off"]').prop('checked', String(button.data('writtenOff')) === '1');
     });
 });
+
+async function printMultipleStickers(instruments) {
+ const popup=window.open('','_blank','width=700,height=600'); if(!popup){alert('Разрешите всплывающие окна для печати.');return;}
+ popup.document.write('<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Печать наклеек</title><style>@page{size:A4;margin:5mm}*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif}#labels{display:grid;grid-template-columns:repeat(3,50mm);grid-auto-rows:30mm;align-content:start;justify-content:start;gap:0}.label{width:50mm;height:30mm;padding:2mm;display:flex;align-items:center;justify-content:space-between;overflow:hidden;break-inside:avoid;page-break-inside:avoid;border:0.1mm dashed #ddd}.qr img{width:20mm;height:20mm}.info{width:24mm;display:flex;flex-direction:column;gap:2px;font-size:6px;line-height:1.1;overflow:hidden}.name{font-weight:bold;font-size:7px;max-height:12mm;overflow:hidden;overflow-wrap:anywhere}.serial{font-size:7px;overflow-wrap:anywhere}@media print{.label{break-inside:avoid;page-break-inside:avoid}}</style></head><body><div id="labels"></div></body></html>'); popup.document.close();
+ const labels=popup.document.getElementById('labels'), temp=document.createElement('div'); temp.style.cssText='position:fixed;left:-10000px;top:0';document.body.appendChild(temp);
+ try { for(const item of instruments){const box=document.createElement('div');temp.appendChild(box);new QRCode(box,{text:window.location.origin+'/instrument/'+encodeURIComponent(item.id),width:160,height:160,correctLevel:QRCode.CorrectLevel.M});await new Promise(resolve=>setTimeout(resolve,60));const image=box.querySelector('img'),canvas=box.querySelector('canvas'),src=image&&image.src?image.src:(canvas?canvas.toDataURL('image/png'):'');const label=popup.document.createElement('div');label.className='label';const qr=popup.document.createElement('div');qr.className='qr';if(src){const img=popup.document.createElement('img');img.src=src;qr.appendChild(img);}const info=popup.document.createElement('div');info.className='info';const name=popup.document.createElement('div');name.className='name';name.textContent=item.name;const serial=popup.document.createElement('div');serial.className='serial';serial.textContent='№ '+(item.serial||'-');const id=popup.document.createElement('div');id.className='serial';id.textContent='ID: '+item.id;info.append(name,serial,id);label.append(qr,info);labels.appendChild(label);temp.removeChild(box);}
+ await Promise.all(Array.from(popup.document.images).map(img=>img.complete?Promise.resolve():new Promise(resolve=>{img.onload=resolve;img.onerror=resolve;})));popup.focus();popup.print();popup.onafterprint=()=>popup.close();
+ }catch(error){popup.close();alert('Не удалось подготовить наклейки к печати.');console.error(error);}finally{temp.remove();}
+}
 
 function printSticker(qrId, id, deviceName, serialNumber) {
     const qrElement = document.getElementById(qrId);

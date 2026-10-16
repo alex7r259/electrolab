@@ -3,15 +3,20 @@ import re
 import os
 import subprocess
 import threading
+import uuid
+import sqlite3
+import tempfile
+import zipfile
+from pathlib import Path
 
 from datetime import date, datetime, timedelta
 
 import requests
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, url_for
 from sqlalchemy import or_
 from waitress import serve
 
-from models import ActionLog, Instrument, Protocol, db
+from models import ActionLog, Instrument, InstrumentDocument, Protocol, db
 from scanner import background_scan
 
 
@@ -20,6 +25,9 @@ app.url_map.strict_slashes = False
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///protocols.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["MAX_CONTENT_LENGTH"] = 25 * 1024 * 1024
+app.config["INSTRUMENT_UPLOAD_FOLDER"] = os.environ.get("ELECTROLAB_UPLOAD_FOLDER", os.path.join(app.root_path, "uploads", "instruments"))
+ALLOWED_DOCUMENT_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png"}
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "connect_args": {
         "check_same_thread": False
@@ -470,6 +478,40 @@ def delete_instrument(instrument_id: int):
     return redirect(url_for("instruments"))
 
 
+@app.route("/instrument/<int:instrument_id>/documents/upload", methods=["POST"])
+def upload_instrument_documents(instrument_id):
+    instrument = Instrument.query.get_or_404(instrument_id)
+    saved_count = 0
+    target_dir = os.path.join(os.path.abspath(app.config["INSTRUMENT_UPLOAD_FOLDER"]), str(instrument.id))
+    os.makedirs(target_dir, exist_ok=True)
+    for uploaded in request.files.getlist("documents"):
+        if not uploaded or not uploaded.filename:
+            continue
+        original_name = os.path.basename(uploaded.filename.replace('\\\\', '/')).strip()
+        original_name = original_name[:255]
+        extension = Path(original_name).suffix.lower()
+        if not original_name or extension not in ALLOWED_DOCUMENT_EXTENSIONS:
+            continue
+        stored_name = f"{uuid.uuid4().hex}{extension}"
+        uploaded.save(os.path.join(target_dir, stored_name))
+        db.session.add(InstrumentDocument(instrument_id=instrument.id, original_name=original_name, stored_name=stored_name))
+        saved_count += 1
+    if saved_count:
+        db.session.commit()
+        add_log("DOCUMENT_UPLOAD", instrument.device_name, f"Загружено документов: {saved_count}")
+    else:
+        db.session.rollback()
+    return redirect(url_for("instrument_card", instrument_id=instrument.id))
+
+
+@app.route("/instrument/<int:instrument_id>/documents/<int:document_id>")
+def download_instrument_document(instrument_id, document_id):
+    instrument = Instrument.query.get_or_404(instrument_id)
+    document = InstrumentDocument.query.filter_by(id=document_id, instrument_id=instrument.id).first_or_404()
+    target_dir = os.path.abspath(os.path.join(app.config["INSTRUMENT_UPLOAD_FOLDER"], str(instrument.id)))
+    return send_from_directory(target_dir, document.stored_name, as_attachment=True, download_name=document.original_name)
+
+
 @app.route("/logs")
 def logs():
     action_logs = ActionLog.query.order_by(ActionLog.created_at.desc()).all()
@@ -480,7 +522,92 @@ def logs():
     )
 
 
+# Ежедневная резервная копия базы и прикреплённых документов.
+BACKUP_FOLDER = r"\\Admin\рабочая\ЛАБОРАТОРИЯ\backup"
+BACKUP_HOUR = 2
+BACKUP_RETENTION_DAYS = 30
+
+
+def create_backup() -> str:
+    """Создаёт согласованную SQLite-копию и архив документов на сетевом ресурсе."""
+    os.makedirs(BACKUP_FOLDER, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    archive_path = os.path.join(BACKUP_FOLDER, f"electrolab_{timestamp}.zip")
+    upload_folder = os.path.abspath(app.config["INSTRUMENT_UPLOAD_FOLDER"])
+
+    database_path = db.engine.url.database
+    if not database_path:
+        raise RuntimeError("Не удалось определить путь к базе данных SQLite.")
+    if not os.path.isabs(database_path):
+        database_path = os.path.abspath(os.path.join(app.instance_path, database_path))
+    if not os.path.isfile(database_path):
+        raise FileNotFoundError(f"Файл базы данных не найден: {database_path}")
+
+    # SQLite backup API корректно копирует БД даже при работающем приложении.
+    with tempfile.TemporaryDirectory(prefix="electrolab_backup_") as temp_dir:
+        snapshot_path = os.path.join(temp_dir, "protocols.db")
+        with sqlite3.connect(database_path, timeout=30) as source_db:
+            with sqlite3.connect(snapshot_path) as backup_db:
+                source_db.backup(backup_db)
+
+        # Временный архив создаём на том же сетевом ресурсе, чтобы os.replace
+        # мог атомарно переименовать его после полной записи.
+        temp_archive = archive_path + ".tmp"
+        try:
+            with zipfile.ZipFile(temp_archive, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+                archive.write(snapshot_path, arcname="protocols.db")
+                if os.path.isdir(upload_folder):
+                    for root, _, files in os.walk(upload_folder):
+                        for filename in files:
+                            full_path = os.path.join(root, filename)
+                            relative_path = os.path.relpath(full_path, upload_folder)
+                            archive.write(full_path, arcname=os.path.join("instrument_documents", relative_path))
+            os.replace(temp_archive, archive_path)
+        finally:
+            if os.path.exists(temp_archive):
+                try:
+                    os.remove(temp_archive)
+                except OSError:
+                    pass
+
+    # Храним последние 30 дней; старые архивы удаляются только после успешного бэкапа.
+    cutoff = datetime.now().timestamp() - BACKUP_RETENTION_DAYS * 86400
+    for filename in os.listdir(BACKUP_FOLDER):
+        if not filename.startswith("electrolab_") or not filename.endswith(".zip"):
+            continue
+        path = os.path.join(BACKUP_FOLDER, filename)
+        try:
+            if os.path.isfile(path) and os.path.getmtime(path) < cutoff:
+                os.remove(path)
+        except OSError as error:
+            print(f"[BACKUP] Не удалось удалить старый архив {path}: {error}")
+
+    print(f"[BACKUP] Резервная копия создана: {archive_path}")
+    return archive_path
+
+
+def daily_backup_loop() -> None:
+    """Запускает резервное копирование ежедневно в 02:00 по времени компьютера."""
+    while True:
+        now = datetime.now()
+        next_run = now.replace(hour=BACKUP_HOUR, minute=0, second=0, microsecond=0)
+        if next_run <= now:
+            next_run += timedelta(days=1)
+        delay = max(1, (next_run - now).total_seconds())
+        print(f"[BACKUP] Следующая резервная копия: {next_run:%Y-%m-%d %H:%M:%S}")
+        if threading.Event().wait(delay):
+            continue
+        try:
+            create_backup()
+        except Exception as error:
+            # Ошибка не останавливает планировщик: следующая попытка будет завтра.
+            print(f"[BACKUP] Ошибка резервного копирования: {error}")
+
+
 if __name__ == "__main__":
+    backup_thread = threading.Thread(target=daily_backup_loop, daemon=True, name="daily-backup")
+    backup_thread.start()
+
     if os.environ.get("ELECTROLAB_DISABLE_SCAN") != "1":
         scan_thread = threading.Thread(
             target=background_scan,
